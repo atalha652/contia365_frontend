@@ -1,0 +1,107 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* light mode colors */
+    --bg-30: #e9e9e9;
+    --bg-40: #e0e0e0;
+    --bg-50: #f2f2f2;
+    --bg-60: #f9f9f9;
+
+    --bd-50: #d8d8d8;
+
+    --fg-40: #000000;
+    --fg-50: #303030;
+    --fg-60: #7d7d7d;
+    --fg-70: #d3d3d3;
+
+    --ac-01: #0ac5a8;
+    --ac-02: #027570;
+
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-track: #f1f5f9;
+  }
+
+  .dark {
+    /* dark mode colors */
+    --bg-30: #2c2c2c;
+    --bg-40: #262626;
+    --bg-50: #1e1e1e;
+    --bg-60: #181818;
+
+    --bd-50: #2f2f2f;
+
+    --fg-40: #ffffff;
+    --fg-50: #e8e8e8;
+    --fg-60: #d1d1d1;
+    --fg-70: #828282;
+
+    --ac-01: #0ac5a8;
+    --ac-02: #027570;
+
+    --scrollbar-thumb: #44474a;
+    --scrollbar-track: #23272b;
+  }
+
+  html,
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: var(--bg-50);
+    @apply custom-scrollbar;
+  }
+}
+
+.dropdown-options-scroll {
+  max-height: 15rem;
+  overflow-y: auto;
+  /* Optional: smooth scrolling and custom scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.custom-scrollbar,
+.dropdown-options-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.custom-scrollbar::-webkit-scrollbar,
+.dropdown-options-scroll::-webkit-scrollbar {
+  width: 6px;
+  background: var(--scrollbar-track);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.dropdown-options-scroll::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track,
+.dropdown-options-scroll::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 4px;
+}
+
+.model-dropdown-option:hover,
+.model-dropdown-option:focus {
+  background-color: var(--bg-40);
+}
+
+.dark .model-dropdown-option:hover,
+.dark .model-dropdown-option:focus {
+  background-color: var(--bg-30);
+}

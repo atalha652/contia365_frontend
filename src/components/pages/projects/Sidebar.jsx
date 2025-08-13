@@ -28,7 +28,6 @@ const SidebarSkeleton = () => (
 const Sidebar = ({
     sidebarExpanded,
     isLoading,
-    user,
     PanelLeft,
     FolderOpen
 }) => {
@@ -36,10 +35,13 @@ const Sidebar = ({
     const [showUserDropdown, setShowUserDropdown] = useState(false);
     const dropdownRef = useRef(null);
 
+    // Get user data directly from localStorage
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
     const handleLogout = () => {
         localStorage.removeItem("user");
         setTimeout(() => {
-            window.location.href = "/login";
+            window.location.href = "/sign-in";
         }, 1500);
     };
 
@@ -125,17 +127,17 @@ const Sidebar = ({
                                     onClick={() => setShowUserDropdown(!showUserDropdown)}
                                     className="w-full p-3 flex items-center hover:bg-bg-50 rounded-md cursor-pointer transition-colors"
                                 >
-                                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-ac-02 flex items-center justify-center text-fg-40 shadow-sm">
+                                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-ac-02 flex items-center justify-center text-white shadow-sm">
                                         <User size={16} />
                                     </div>
                                     {sidebarExpanded && (
                                         <>
                                             <div className="ml-3 overflow-hidden flex-1 text-left">
                                                 <p className="text-sm font-medium truncate">
-                                                    {user.name || "User"}
+                                                    {user?.name || "User"}
                                                 </p>
                                                 <p className="text-xs text-fg-60 truncate">
-                                                    {user.email || "No email"}
+                                                    {user?.email || "No email"}
                                                 </p>
                                             </div>
                                             <ChevronDown

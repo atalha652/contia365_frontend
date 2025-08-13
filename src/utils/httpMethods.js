@@ -1,7 +1,13 @@
 import axios from "axios";
 
-const authToken = JSON.parse(localStorage.getItem("user"));
-console.log("authToken", authToken);
+const getAuthToken = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return user?.access_token;
+  } catch (error) {
+    return null;
+  }
+};
 
 export const authHttpPost = async ({ url, payload = null }) => {
   try {
@@ -14,20 +20,21 @@ export const authHttpPost = async ({ url, payload = null }) => {
 };
 
 export const httpGet = async ({ url, params = null }) => {
-  // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
-  //   return; // Ensure function stops here
-  // }
+  const authToken = getAuthToken();
+  if (!authToken) {
+    window.location.href = window.location.origin + '/sign-in';
+    return;
+  }
 
   try {
     const response = await axios.get(url, {
-      headers: { Authorization: 'Bearer ' + authToken?.token },
+      headers: { Authorization: 'Bearer ' + authToken },
       params: params,
     });
     return response;
   } catch (e) {
     if (e.response && e.response.status === 401) {
-      window.location.href = window.location.origin + '/login';
+      window.location.href = window.location.origin + '/sign-in';
       localStorage.clear();
     } else {
       throw e;
@@ -36,15 +43,12 @@ export const httpGet = async ({ url, params = null }) => {
 };
 
 export const httpPostBlob = async ({ url, payload }) => {
-
-  // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
-  // }
   try {
+    const authToken = getAuthToken();
     const response = await axios.post(url, payload, {
       headers: {
         'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${authToken?.token}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
     return response;
@@ -57,13 +61,11 @@ export const httpPostBlob = async ({ url, payload }) => {
 
 
 export const httpPostBlobDoc = async ({ url, payload = null }) => {
-  if (!authToken) {
-    window.location.href = window.location.origin + '/login';
-  }
   try {
+    const authToken = getAuthToken();
     const response = await axios.post(url, payload, {
       headers: {
-        Authorization: `Bearer ${authToken?.token}`,
+        Authorization: `Bearer ${authToken}`,
       },
       responseType: 'blob',
     });
@@ -75,19 +77,20 @@ export const httpPostBlobDoc = async ({ url, payload = null }) => {
 };
 
 export const httpPost = async ({ url, payload = null }) => {
-  // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
-  //   return;
-  // }
+  const authToken = getAuthToken();
+  if (!authToken) {
+    window.location.href = window.location.origin + '/sign-in';
+    return;
+  }
 
   try {
     const response = await axios.post(url, payload, {
-      headers: { Authorization: 'Bearer ' + authToken?.token },
+      headers: { Authorization: 'Bearer ' + authToken },
     });
     return response;
   } catch (e) {
     if (e.response && e.response.status === 401) {
-      window.location.href = window.location.origin + '/login';
+      window.location.href = window.location.origin + '/sign-in';
       localStorage.clear();
     } else {
       console.log(e);
@@ -98,12 +101,15 @@ export const httpPost = async ({ url, payload = null }) => {
 
 
 export const httpPut = async ({ url, payload }) => {
-  // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
-  // }
+  const authToken = getAuthToken();
+  if (!authToken) {
+    window.location.href = window.location.origin + '/sign-in';
+    return;
+  }
+
   try {
     const response = await axios.put(url, payload, {
-      headers: { Authorization: 'Bearer ' + authToken?.token },
+      headers: { Authorization: 'Bearer ' + authToken },
     });
     return response;
   } catch (e) {
@@ -113,13 +119,16 @@ export const httpPut = async ({ url, payload }) => {
 };
 
 export const httpDelete = async ({ url, payload = null }) => {
-  // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
-  // }
+  const authToken = getAuthToken();
+  if (!authToken) {
+    window.location.href = window.location.origin + '/sign-in';
+    return;
+  }
+
   try {
     const config = {
       headers: {
-        'Authorization': 'Bearer ' + authToken?.token,
+        'Authorization': 'Bearer ' + authToken,
         'Content-Type': 'application/json'
       },
       data: payload // Send payload in the request body for DELETE
@@ -134,47 +143,51 @@ export const httpDelete = async ({ url, payload = null }) => {
 };
 
 export const httpPatch = async ({ url, payload = null }) => {
+  const authToken = getAuthToken();
   if (!authToken) {
-    window.location.href = window.location.origin + '/login';
+    window.location.href = window.location.origin + '/sign-in';
+    return;
   }
+
   try {
     const response = await axios.patch(url, payload, {
-      headers: { Authorization: 'Bearer ' + authToken?.token },
+      headers: { Authorization: 'Bearer ' + authToken },
     });
     return response;
   } catch (e) {
     console.log(e);
-    return e;
+    throw e;
   }
 };
 
 export const httpGetBlob = async ({ url, params = null }) => {
+  const authToken = getAuthToken();
   if (!authToken) {
-    window.location.href = window.location.origin + '/login';
+    window.location.href = window.location.origin + '/sign-in';
     return;
   }
 
   try {
     const response = await axios.get(url, {
-      headers: { Authorization: 'Bearer ' + authToken?.token },
+      headers: { Authorization: 'Bearer ' + authToken },
       params: params,
       responseType: 'blob',
     });
     return response;
   } catch (e) {
     if (e.response && e.response.status === 401) {
-      window.location.href = window.location.origin + '/login';
+      window.location.href = window.location.origin + '/sign-in';
       localStorage.clear();
     } else {
       console.error('Error fetching blob:', e);
     }
-    return e;
+    throw e;
   }
 };
 
 export const httpGetWithOutToken = async ({ url, params = null }) => {
   // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
+  //   window.location.href = window.location.origin + '/sign-in';
   // }  
   try {
     const response = await axios.get(url, {
@@ -190,7 +203,7 @@ export const httpGetWithOutToken = async ({ url, params = null }) => {
 
 export const httpPostWithOutToken = async ({ url, payload = null }) => {
   // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
+  //   window.location.href = window.location.origin + '/sign-in';
   // }
   try {
     const response = await axios.post(url, payload, {
@@ -204,7 +217,7 @@ export const httpPostWithOutToken = async ({ url, payload = null }) => {
 };
 export const httpPutWithOutToken = async ({ url, payload = null }) => {
   // if (!authToken) {
-  //   window.location.href = window.location.origin + '/login';
+  //   window.location.href = window.location.origin + '/sign-in';
   // }
   try {
     const response = await axios.put(url, payload, {
@@ -218,10 +231,10 @@ export const httpPutWithOutToken = async ({ url, payload = null }) => {
 };
 
 export const httpPostStream = async ({ url, payload, onMessage, headers = {}, abortController }) => {
-  const authToken = JSON.parse(localStorage.getItem("user"));
+  const authToken = getAuthToken();
   let fetchHeaders = {
     ...headers,
-    Authorization: `Bearer ${authToken?.token}`,
+    Authorization: `Bearer ${authToken}`,
   };
   let body = payload;
   // If not FormData, assume JSON

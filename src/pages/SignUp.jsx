@@ -17,13 +17,16 @@ const SignUp = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
+    confirmPassword: "",
+    tax_id: "",
     type: "organization",
     organization_info: {
-      org_name: "",
+      company_name: "",
       type_id: "",
       type_name: "",
-      website: "",
+      address: "",
     },
   });
 
@@ -118,8 +121,10 @@ const SignUp = () => {
       const baseUserData = {
         name: formData.name,
         email: formData.email,
+        phone: formData.phone,
         password: formData.password,
         type: isOrgRegister ? "organization" : "individual",
+        tax_id: formData.tax_id || null,
       };
 
       let apiData;
@@ -127,7 +132,7 @@ const SignUp = () => {
       if (isOrgRegister) {
         // Organization registration data
         if (
-          !formData.organization_info.org_name ||
+          !formData.organization_info.company_name ||
           !formData.organization_info.type_id
         ) {
           throw new Error("Organization name and type are required");
@@ -137,18 +142,15 @@ const SignUp = () => {
         apiData = {
           ...baseUserData,
           organization_info: {
-            org_name: formData.organization_info.org_name,
             type_id: formData.organization_info.type_id,
             type_name: formData.organization_info.type_name,
-            website: formData.organization_info.website || null,
+            company_name: formData.organization_info.company_name,
+            address: formData.organization_info.address || null,
           },
         };
       } else {
-        // Individual registration data
+        // Individual registration data - no organization_info object
         apiData = { ...baseUserData };
-        // Add any individual-specific fields here if needed in the future
-        // Example:
-        // apiData.some_individual_field = someValue;
       }
 
       // Call the signup API with the prepared data
@@ -158,16 +160,17 @@ const SignUp = () => {
         toast.success("Registration successful! Please login to continue.", {});
         navigate("/sign-in");
       } else {
-        throw new Error(
-          response.data?.message || "Registration failed. Please try again."
-        );
+        // Extract the exact error message from the API response
+        const errorMessage = response.data?.detail || response.data?.message || "Registration failed. Please try again.";
+        throw new Error(errorMessage);
       }
     } catch (err) {
       console.error("Registration error:", err);
-      setError(
-        err.message ||
-          "An error occurred during registration. Please try again."
-      );
+      const errorMessage = err.message || "An error occurred during registration. Please try again.";
+
+      // Show error in both the form and as a toast notification
+      setError(errorMessage);
+      toast.error(errorMessage, {});
     } finally {
       setIsLoading(false);
     }
@@ -178,12 +181,13 @@ const SignUp = () => {
     setFormData((prev) => ({
       ...prev,
       type: !isOrgRegister ? "organization" : "individual",
+      confirmPassword: "",
       organization_info: {
         ...prev.organization_info,
-        org_name: "",
+        company_name: "",
         type_id: "",
         type_name: "",
-        website: "",
+        address: "",
       },
     }));
   };
@@ -227,22 +231,20 @@ const SignUp = () => {
               <button
                 type="button"
                 onClick={toggleOrgRegistration}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  !isOrgRegister
-                    ? "bg-bg-40 text-white"
-                    : "bg-bg-60 text-fg-50 hover:bg-bd-50"
-                }`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${!isOrgRegister
+                  ? "bg-bg-40 text-white"
+                  : "bg-bg-60 text-fg-50 hover:bg-bd-50"
+                  }`}
               >
                 Individual
               </button>
               <button
                 type="button"
                 onClick={toggleOrgRegistration}
-                className={`ml-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isOrgRegister
-                    ? "bg-bg-40 text-white"
-                    : "bg-bg-60 text-fg-50 hover:bg-bd-50"
-                }`}
+                className={`ml-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${isOrgRegister
+                  ? "bg-bg-40 text-white"
+                  : "bg-bg-60 text-fg-50 hover:bg-bd-50"
+                  }`}
               >
                 Organization
               </button>
@@ -275,20 +277,20 @@ const SignUp = () => {
                   <>
                     <div>
                       <label
-                        htmlFor="org_name"
+                        htmlFor="org_company_name"
                         className="block text-sm font-medium text-fg-50"
                       >
                         Organization Name *
                       </label>
                       <div className="mt-1">
                         <input
-                          id="org_name"
-                          name="org_org_name"
+                          id="org_company_name"
+                          name="org_company_name"
                           type="text"
                           required
                           className="appearance-none block w-full px-3 py-2 border border-bd-50 bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm"
                           placeholder="Acme Inc."
-                          value={formData.organization_info.org_name}
+                          value={formData.organization_info.company_name}
                           onChange={handleChange}
                         />
                       </div>
@@ -322,19 +324,19 @@ const SignUp = () => {
 
                     <div>
                       <label
-                        htmlFor="org_website"
+                        htmlFor="org_address"
                         className="block text-sm font-medium text-fg-50"
                       >
-                        Website
+                        Address
                       </label>
                       <div className="mt-1">
                         <input
-                          id="org_website"
-                          name="org_website"
-                          type="url"
+                          id="org_address"
+                          name="org_address"
+                          type="text"
                           className="appearance-none block w-full px-3 py-2 border border-bd-50 bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm"
-                          placeholder="https://your-org.com"
-                          value={formData.organization_info.website}
+                          placeholder="Street, City, State, ZIP"
+                          value={formData.organization_info.address}
                           onChange={handleChange}
                         />
                       </div>
@@ -361,6 +363,47 @@ const SignUp = () => {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-fg-50"
+                  >
+                    Phone
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      className="appearance-none block w-full px-3 py-2 border border-bd-50 bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm"
+                      placeholder="+1 (555) 123-4567"
+                      value={formData.phone}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="tax_id"
+                    className="block text-sm font-medium text-fg-50"
+                  >
+                    Tax ID / VAT Number
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="tax_id"
+                      name="tax_id"
+                      type="text"
+                      className="appearance-none block w-full px-3 py-2 border border-bd-50 bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm"
+                      placeholder="e.g., GB123456789"
+                      value={formData.tax_id}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex justify-between items-center">
                     <label
@@ -388,41 +431,38 @@ const SignUp = () => {
                     />
                   </div>
                 </div>
-                {isOrgRegister && (
-                  <div>
-                    <div className="flex justify-between items-center">
-                      <label
-                        htmlFor="confirmPassword"
-                        className="block text-sm font-medium text-fg-50"
-                      >
-                        Confirm Password
-                      </label>
-                      {formData.confirmPassword &&
-                        formData.password !== formData.confirmPassword && (
-                          <span className="text-xs text-red-400">
-                            Passwords don't match
-                          </span>
-                        )}
-                    </div>
-                    <div className="mt-1">
-                      <input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type="password"
-                        required={isOrgRegister}
-                        className={`appearance-none block w-full px-3 py-2 border ${
-                          formData.confirmPassword &&
-                          formData.password !== formData.confirmPassword
-                            ? "border-red-400"
-                            : "border-bd-50"
-                        } bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm`}
-                        placeholder="••••••••"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                      />
-                    </div>
+                <div>
+                  <div className="flex justify-between items-center">
+                    <label
+                      htmlFor="confirmPassword"
+                      className="block text-sm font-medium text-fg-50"
+                    >
+                      Confirm Password
+                    </label>
+                    {formData.confirmPassword &&
+                      formData.password !== formData.confirmPassword && (
+                        <span className="text-xs text-red-400">
+                          Passwords don't match
+                        </span>
+                      )}
                   </div>
-                )}
+                  <div className="mt-1">
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      required
+                      className={`appearance-none block w-full px-3 py-2 border ${formData.confirmPassword &&
+                        formData.password !== formData.confirmPassword
+                        ? "border-red-400"
+                        : "border-bd-50"
+                        } bg-bg-60 rounded-md shadow-sm placeholder-fg-70 text-fg-50 focus:outline-none focus:ring-ac-02 focus:border-ac-02 sm:text-sm`}
+                      placeholder="••••••••"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
               </div>
               <div className="mb-4 flex items-start">
                 <div className="flex items-center h-5">

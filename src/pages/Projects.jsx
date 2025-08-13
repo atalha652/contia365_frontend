@@ -13,7 +13,7 @@ import {
 import CreateProjectModal from "../components/pages/projects/CreateProjectModal";
 import Sidebar from "../components/pages/projects/Sidebar";
 import ProjectsHeader from "../components/pages/projects/ProjectsHeader";
-
+import { createProject, getMyProjects } from "../api/apiFunction/projectServices";
 
 
 const HeaderSkeleton = () => (
@@ -34,15 +34,33 @@ const HeaderSkeleton = () => (
 
 const ContentSkeleton = () => (
     <div className="animate-pulse p-6">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
             <div className="space-y-6">
-                <div className="h-8 bg-bg-40 rounded w-48"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[...Array(6)].map((_, index) => (
-                        <div key={index} className="bg-bg-60 rounded-lg p-6">
-                            <div className="h-4 bg-bg-40 rounded w-24 mb-4"></div>
-                            <div className="h-8 bg-bg-40 rounded w-16 mb-2"></div>
-                            <div className="h-4 bg-bg-40 rounded w-32"></div>
+                {/* Table Header Skeleton */}
+                <div className="bg-bg-60 rounded-lg overflow-hidden">
+                    <div className="px-6 py-4 border-b border-bd-50">
+                        <div className="grid grid-cols-5 gap-4">
+                            <div className="h-4 bg-bg-40 rounded w-20"></div>
+                            <div className="h-4 bg-bg-40 rounded w-24"></div>
+                            <div className="h-4 bg-bg-40 rounded w-16"></div>
+                            <div className="h-4 bg-bg-40 rounded w-20"></div>
+                            <div className="h-4 bg-bg-40 rounded w-16"></div>
+                        </div>
+                    </div>
+
+                    {/* Table Rows Skeleton */}
+                    {[...Array(5)].map((_, index) => (
+                        <div key={index} className="px-6 py-4 border-b border-bd-50 last:border-b-0">
+                            <div className="grid grid-cols-5 gap-4 items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 bg-bg-40 rounded"></div>
+                                    <div className="h-4 bg-bg-40 rounded w-24"></div>
+                                </div>
+                                <div className="h-4 bg-bg-40 rounded w-32"></div>
+                                <div className="h-6 bg-bg-40 rounded w-16"></div>
+                                <div className="h-4 bg-bg-40 rounded w-20"></div>
+                                <div className="h-6 bg-bg-40 rounded w-12"></div>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -65,50 +83,19 @@ const Projects = () => {
     const fetchProjects = useCallback(async () => {
         try {
             setIsLoading(true);
-            // TODO: Replace with actual API call
-            // const response = await getProjects(user.id);
-            // setProjects(Array.isArray(response) ? response : []);
-
-            // Mock data for now
-            const mockProjects = [
-                {
-                    id: 1,
-                    name: "Monthly Expenses",
-                    description: "Track all monthly business expenses",
-                    invoiceCount: 45,
-                    totalAmount: 12500,
-                    createdAt: new Date(),
-                    status: "active"
-                },
-                {
-                    id: 2,
-                    name: "Client Projects",
-                    description: "Invoices from client projects",
-                    invoiceCount: 23,
-                    totalAmount: 8900,
-                    createdAt: new Date(),
-                    status: "active"
-                },
-                {
-                    id: 3,
-                    name: "Travel Expenses",
-                    description: "Business travel and accommodation",
-                    invoiceCount: 12,
-                    totalAmount: 3400,
-                    createdAt: new Date(),
-                    status: "active"
-                }
-            ];
-            setProjects(mockProjects);
-            return true;
+            const response = await getMyProjects();
+            // Handle the new API response format with "projects" wrapper
+            const projectsData = response?.projects || response || [];
+            setProjects(Array.isArray(projectsData) ? projectsData : []);
         } catch (error) {
             console.error("Error fetching projects:", error);
             toast.error("Failed to fetch projects");
-            return false;
+            // Fallback to empty array
+            setProjects([]);
         } finally {
             setIsLoading(false);
         }
-    }, [user.id]);
+    }, []);
 
     useEffect(() => {
         fetchProjects();
@@ -122,25 +109,19 @@ const Projects = () => {
     const handleCreateProject = async (projectData) => {
         try {
             setIsLoading(true);
-            // TODO: Replace with actual API call
-            // const response = await createProject(projectData);
+            const response = await createProject(projectData);
 
-            // Mock creation
-            const newProject = {
-                id: Date.now(),
-                ...projectData,
-                invoiceCount: 0,
-                totalAmount: 0,
-                createdAt: new Date(),
-                status: "active"
-            };
-
-            setProjects(prev => [...prev, newProject]);
-            toast.success("Project created successfully");
-            setShowCreateProjectModal(false);
+            if (response.status === 201 || response.status === 200) {
+                toast.success("Project created successfully");
+                setShowCreateProjectModal(false);
+                // Refresh projects list
+                await fetchProjects();
+            } else {
+                throw new Error(response.data?.message || "Failed to create project");
+            }
         } catch (error) {
             console.error("Error creating project:", error);
-            toast.error("Failed to create project");
+            toast.error(error.message || "Failed to create project");
         } finally {
             setIsLoading(false);
         }
@@ -154,7 +135,6 @@ const Projects = () => {
             <Sidebar
                 sidebarExpanded={sidebarExpanded}
                 isLoading={isLoading}
-                user={user}
                 PanelLeft={PanelLeft}
                 FolderOpen={FolderOpen}
             />
@@ -210,7 +190,7 @@ const Projects = () => {
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    <div className="max-w-6xl mx-auto">
+                    <div className="max-w-7xl mx-auto">
                         {isLoading ? (
                             <ContentSkeleton />
                         ) : (

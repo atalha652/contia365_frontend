@@ -55,24 +55,23 @@ const SignIn = () => {
       });
 
       if (response.status === 200) {
-        // Persist access token for both current and legacy consumers
-        const accessToken = response.data?.access_token || response.data?.token;
-        const tokenType = response.data?.token_type || 'Bearer';
-        if (accessToken) {
-          // New minimal storage
-          localStorage.setItem('token', accessToken);
-          // Legacy compatibility for existing httpMethods reading from 'user'
-          localStorage.setItem('user', JSON.stringify({ token: accessToken, token_type: tokenType }));
-        }
+        // Store the complete response object in localStorage as "user"
+        localStorage.setItem('user', JSON.stringify(response.data));
 
         toast.success("Login successful! Redirecting...");
         navigate("/projects");
       } else {
-        throw new Error(response.data?.message || "Login failed. Please try again.");
+        // Extract the exact error message from the API response
+        const errorMessage = response.data?.detail || response.data?.message || "Login failed. Please try again.";
+        throw new Error(errorMessage);
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message || "An error occurred during login. Please try again.");
+      const errorMessage = err.message || "An error occurred during login. Please try again.";
+
+      // Show error in both the form and as a toast notification
+      setError(errorMessage);
+      toast.error(errorMessage, {});
     } finally {
       setIsLoading(false);
     }
@@ -190,9 +189,8 @@ const SignIn = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    isLoading ? 'bg-ac-01' : 'bg-ac-02 hover:bg-ac-01'
-                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ac-02 disabled:opacity-70`}
+                  className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${isLoading ? 'bg-ac-01' : 'bg-ac-02 hover:bg-ac-01'
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ac-02 disabled:opacity-70`}
                 >
                   {isLoading ? (
                     <>

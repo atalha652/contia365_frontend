@@ -1,6 +1,6 @@
 // frontend/src/components/pages/projects/CreateProjectModal.jsx
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Upload } from "lucide-react";
 
 const DEFAULT_COLORS = [
     "#da4252",
@@ -14,17 +14,29 @@ const DEFAULT_COLORS = [
 
 const CreateProjectModal = ({ onSubmit, onClose }) => {
     const [formData, setFormData] = useState({
-        name: "",
+        title: "",
         description: "",
-        color: "#0ac5a8" // Default to brand color
+        color: "#0ac5a8", // Default to brand color
+        file: null
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [fileName, setFileName] = useState("");
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!formData.name.trim()) {
-            alert("Project name is required");
+        if (!formData.title.trim()) {
+            alert("Project title is required");
+            return;
+        }
+
+        if (!formData.description.trim()) {
+            alert("Project description is required");
+            return;
+        }
+
+        if (!formData.file) {
+            alert("Project file is required");
             return;
         }
 
@@ -46,6 +58,17 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
         }));
     };
 
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFormData(prev => ({
+                ...prev,
+                file: file
+            }));
+            setFileName(file.name);
+        }
+    };
+
     const handleColorSelect = (color) => {
         setFormData(prev => ({
             ...prev,
@@ -55,16 +78,16 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Project Name */}
+            {/* Project Title */}
             <div>
-                <label htmlFor="name" className="block text-sm font-medium text-fg-50 mb-2">
-                    Project Name *
+                <label htmlFor="title" className="block text-sm font-medium text-fg-50 mb-2">
+                    Project Title *
                 </label>
                 <input
                     type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
+                    id="title"
+                    name="title"
+                    value={formData.title}
                     onChange={handleChange}
                     placeholder="e.g., Monthly Expenses, Client Projects"
                     className="w-full px-3 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 placeholder-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02 focus:border-transparent"
@@ -75,7 +98,7 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
             {/* Project Description */}
             <div>
                 <label htmlFor="description" className="block text-sm font-medium text-fg-50 mb-2">
-                    Description
+                    Description *
                 </label>
                 <textarea
                     id="description"
@@ -85,6 +108,7 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                     placeholder="Describe what this project is for..."
                     rows={3}
                     className="w-full px-3 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 placeholder-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02 focus:border-transparent resize-none"
+                    required
                 />
             </div>
 
@@ -130,6 +154,35 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                 </div>
             </div>
 
+            {/* Project File */}
+            <div>
+                <label htmlFor="file" className="block text-sm font-medium text-fg-50 mb-2">
+                    Project File *
+                </label>
+                <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="file"
+                            id="file"
+                            name="file"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            required
+                        />
+                        <label
+                            htmlFor="file"
+                            className="flex items-center gap-2 px-4 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 cursor-pointer hover:bg-bg-40 transition-colors"
+                        >
+                            <Upload size={16} />
+                            Choose File
+                        </label>
+                        <span className="text-sm text-fg-60">
+                            {fileName || "No file chosen"}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4">
                 <button
@@ -142,7 +195,7 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                 </button>
                 <button
                     type="submit"
-                    disabled={isSubmitting || !formData.name.trim()}
+                    disabled={isSubmitting || !formData.title.trim() || !formData.description.trim() || !formData.file}
                     className="px-4 py-2 bg-ac-02 hover:bg-ac-01 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isSubmitting ? "Creating..." : "Create Project"}

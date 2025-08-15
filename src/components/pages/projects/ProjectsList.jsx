@@ -6,14 +6,20 @@ import {
     FolderOpen,
     MoreHorizontal,
     Calendar,
-    FileText
+    FileText,
+    Eye
 } from 'lucide-react';
 import { formatDateTime } from '../../../utils/helperFunction';
+import { deleteProject } from '../../../api/apiFunction/projectServices';
+import { toast } from 'react-toastify';
+import ProjectImageModal from './ProjectImageModal';
 
 const ProjectsList = () => {
-    const { projects = [], searchQuery = '', statusFilter = 'all' } = useOutletContext();
+    const { projects = [], searchQuery = '', statusFilter = 'all', refreshProjects } = useOutletContext();
     // menu: { id, top, left, placeAbove, triggerEl }
     const [menu, setMenu] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [previewTitle, setPreviewTitle] = useState('Preview');
     const menuRef = useRef(null);
 
     // Close actions dropdown when clicking outside (portal-aware)
@@ -73,10 +79,34 @@ const ProjectsList = () => {
         return matchesSearch && matchesStatus;
     });
 
-    const handleActionClick = (projectId, action) => {
+    const handleActionClick = async (projectId, action) => {
+        if (action === 'delete') {
+            const confirmed = window.confirm('Are you sure you want to delete this project? This action cannot be undone.');
+            if (!confirmed) {
+                setMenu(null);
+                return;
+            }
+            try {
+                const res = await deleteProject(projectId);
+                if (res?.status === 200) {
+                    toast.success('Project deleted successfully');
+                } else {
+                    toast.success('Project deletion requested');
+                }
+                if (typeof refreshProjects === 'function') {
+                    await refreshProjects();
+                }
+            } catch (e) {
+                console.error('Delete project failed:', e);
+                toast.error('Failed to delete project');
+            } finally {
+                setMenu(null);
+            }
+            return;
+        }
+        // Placeholder for other actions (e.g., edit)
         console.log(`Action ${action} for project ${projectId}`);
         setMenu(null);
-        // TODO: Implement actions
     };
 
     const getStatusBadge = (status) => {
@@ -190,7 +220,21 @@ const ProjectsList = () => {
 
                                             {/* Actions */}
                                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                                <div className="relative">
+                                                <div className="relative inline-flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (project?.package_url) {
+                                                                setPreviewUrl(project.package_url);
+                                                                setPreviewTitle(project.title || project.name || 'Preview');
+                                                            } else {
+                                                                toast.info('No preview available for this project');
+                                                            }
+                                                        }}
+                                                        className="p-1 text-fg-60 hover:text-fg-50 transition-colors"
+                                                        title="Preview"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
                                                     <button
                                                         onClick={(e) => {
                                                             const rect = e.currentTarget.getBoundingClientRect();
@@ -206,6 +250,7 @@ const ProjectsList = () => {
                                                             setMenu({ id: project._id, top, left, placeAbove, triggerEl: e.currentTarget });
                                                         }}
                                                         className="p-1 text-fg-60 hover:text-fg-50 transition-colors"
+                                                        title="More actions"
                                                     >
                                                         <MoreHorizontal size={16} />
                                                     </button>
@@ -219,6 +264,14 @@ const ProjectsList = () => {
                     </div>
                 )}
             </div>
+            {/* Image Preview Modal */}
+            {previewUrl && (
+                <ProjectImageModal
+                    imageUrl={previewUrl}
+                    title={previewTitle}
+                    onClose={() => setPreviewUrl(null)}
+                />
+            )}
             {/* Portal for Actions Menu */}
             {menu && ReactDOM.createPortal(
                 <div

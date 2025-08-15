@@ -37,7 +37,6 @@ function App() {
             <Route path="/sign-up" element={<SignUp />} />
             <Route path="/projects" element={<Projects />}>
               <Route index element={<ProjectsList />} />
-              <Route path="projects" element={<ProjectsList />} />
               <Route path="analytics" element={<Analytics />} />
             </Route>
           </Routes>

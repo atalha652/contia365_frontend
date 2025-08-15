@@ -83,7 +83,12 @@ const Projects = () => {
     const fetchProjects = useCallback(async () => {
         try {
             setIsLoading(true);
-            const response = await getMyProjects();
+            // Extract userId from possible keys to support varied auth payloads
+            const userId = user?.id || user?._id || user?.user_id || user?.uid;
+            if (!userId) {
+                throw new Error("Missing user id");
+            }
+            const response = await getMyProjects(userId);
             // Handle the new API response format with "projects" wrapper
             const projectsData = response?.projects || response || [];
             setProjects(Array.isArray(projectsData) ? projectsData : []);
@@ -95,7 +100,7 @@ const Projects = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [user?.id, user?._id, user?.user_id, user?.uid]);
 
     useEffect(() => {
         fetchProjects();
@@ -194,7 +199,16 @@ const Projects = () => {
                         {isLoading ? (
                             <ContentSkeleton />
                         ) : (
-                            <Outlet key={location.pathname} context={{ projects, user, searchQuery, statusFilter }} />
+                            <Outlet
+                                key={location.pathname}
+                                context={{
+                                    projects,
+                                    user,
+                                    searchQuery,
+                                    statusFilter,
+                                    refreshProjects: fetchProjects,
+                                }}
+                            />
                         )}
                     </div>
                 </div>

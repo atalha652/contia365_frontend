@@ -1,6 +1,6 @@
 // frontend/src/api/apiFunction/projectServices.js
 import { PROJECT_URL } from "../restEndpoint";
-import { httpPost, httpGet } from "../../utils/httpMethods";
+import { httpPost, httpGet, httpDelete } from "../../utils/httpMethods";
 
 export const createProject = async (data) => {
   try {
@@ -24,14 +24,29 @@ export const createProject = async (data) => {
   }
 };
 
-export const getMyProjects = async () => {
+export const getMyProjects = async (userId) => {
   try {
+    if (!userId) throw new Error('Missing userId for fetching projects');
     const response = await httpGet({ 
-      url: PROJECT_URL + '/my-projects' 
+      url: `${PROJECT_URL}/${userId}`
     });
+    // Keep the same return shape used by callers
     return response?.data || [];
   } catch (err) {
     console.error('Get projects error:', err);
+    throw err;
+  }
+};
+
+export const deleteProject = async (projectId) => {
+  try {
+    if (!projectId) throw new Error('Missing projectId for deletion');
+    const response = await httpDelete({
+      url: `${PROJECT_URL}/delete/${projectId}`,
+    });
+    return response;
+  } catch (err) {
+    console.error('Delete project error:', err);
     throw err;
   }
 };

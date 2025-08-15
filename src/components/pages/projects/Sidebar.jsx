@@ -29,7 +29,7 @@ const Sidebar = ({
     sidebarExpanded,
     isLoading,
     PanelLeft,
-    FolderOpen
+    FolderOpen,
 }) => {
     const { theme, toggleTheme } = useTheme();
     const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -92,14 +92,14 @@ const Sidebar = ({
                     <div className="flex-grow overflow-y-auto custom-scrollbar">
                         <div className="px-3 py-4 space-y-1">
                             <NavLink
-                                to="projects"
+                                to="."
+                                end
                                 className={({ isActive }) =>
                                     `flex items-center w-full px-2 py-2 text-sm rounded-md ${isActive
                                         ? "bg-bg-40 text-fg-50"
                                         : "text-fg-60 hover:bg-bg-50/20"
                                     }`
                                 }
-                                end
                             >
                                 <FolderOpen size={18} className="mr-3" />
                                 <span>Projects</span>

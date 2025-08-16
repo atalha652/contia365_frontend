@@ -13,6 +13,7 @@ import { formatDateTime } from '../../../utils/helperFunction';
 import { deleteProject } from '../../../api/apiFunction/projectServices';
 import { toast } from 'react-toastify';
 import ProjectImageModal from './ProjectImageModal';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 const ProjectsList = () => {
     const { projects = [], searchQuery = '', statusFilter = 'all', refreshProjects } = useOutletContext();
@@ -20,6 +21,7 @@ const ProjectsList = () => {
     const [menu, setMenu] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [previewTitle, setPreviewTitle] = useState('Preview');
+    const [deletingProject, setDeletingProject] = useState(null);
     const menuRef = useRef(null);
 
     // Close actions dropdown when clicking outside (portal-aware)
@@ -79,29 +81,35 @@ const ProjectsList = () => {
         return matchesSearch && matchesStatus;
     });
 
-    const handleActionClick = async (projectId, action) => {
+    const handleDeleteClick = (projectId) => {
+        setDeletingProject(projectId);
+        setMenu(null);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deletingProject) return;
+        
+        try {
+            const res = await deleteProject(deletingProject);
+            if (res?.status === 200) {
+                toast.success('Project deleted successfully');
+            } else {
+                toast.success('Project deletion requested');
+            }
+            if (typeof refreshProjects === 'function') {
+                await refreshProjects();
+            }
+        } catch (e) {
+            console.error('Delete project failed:', e);
+            toast.error('Failed to delete project');
+        } finally {
+            setDeletingProject(null);
+        }
+    };
+
+    const handleActionClick = (projectId, action) => {
         if (action === 'delete') {
-            const confirmed = window.confirm('Are you sure you want to delete this project? This action cannot be undone.');
-            if (!confirmed) {
-                setMenu(null);
-                return;
-            }
-            try {
-                const res = await deleteProject(projectId);
-                if (res?.status === 200) {
-                    toast.success('Project deleted successfully');
-                } else {
-                    toast.success('Project deletion requested');
-                }
-                if (typeof refreshProjects === 'function') {
-                    await refreshProjects();
-                }
-            } catch (e) {
-                console.error('Delete project failed:', e);
-                toast.error('Failed to delete project');
-            } finally {
-                setMenu(null);
-            }
+            handleDeleteClick(projectId);
             return;
         }
         // Placeholder for other actions (e.g., edit)
@@ -272,6 +280,14 @@ const ProjectsList = () => {
                     onClose={() => setPreviewUrl(null)}
                 />
             )}
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmationModal
+                isOpen={!!deletingProject}
+                onClose={() => setDeletingProject(null)}
+                onConfirm={handleDeleteConfirm}
+                itemName="this project"
+            />
+
             {/* Portal for Actions Menu */}
             {menu && ReactDOM.createPortal(
                 <div

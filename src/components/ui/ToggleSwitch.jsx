@@ -1,15 +1,5 @@
 import React from 'react';
 
-/**
- * A reusable toggle switch component
- * @param {Object} props - Component props
- * @param {boolean} props.checked - Whether the toggle is checked/active
- * @param {function(boolean): void} props.onChange - Callback function when toggle state changes
- * @param {string} [props.label] - Optional label to display next to the toggle
- * @param {'left'|'right'} [props.labelPosition='right'] - Position of the label ('left' or 'right')
- * @param {string} [props.className] - Additional CSS classes for the container
- * @returns {JSX.Element} ToggleSwitch component
- */
 const ToggleSwitch = ({ 
   checked, 
   onChange, 

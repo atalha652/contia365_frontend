@@ -1,0 +1,7 @@
+export const SERVER_PATH = import.meta.env.VITE_APP_API_URL;
+
+// Auth End Points
+export const AUTH_URL = `${SERVER_PATH}/api/auth`;
+
+// Project End Points
+export const PROJECT_URL = `${SERVER_PATH}/api/project`;

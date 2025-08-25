@@ -5,25 +5,14 @@ import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FaCheckCircle,
-  FaFileAlt,
-  FaUser,
-  FaBuilding,
-  FaCreditCard,
-  FaLock,
-  FaCheck,
-  FaPlus,
-  FaSpinner,
-  FaExclamationCircle,
-  FaArrowLeft,
-  FaArrowRight,
 } from "react-icons/fa";
 import { updatePageTitle } from "../utils/titleUtils";
 import { getOrgTypes, signUp } from "../api/apiFunction/authServices";
 import Stepper from "../components/ui/Stepper";
-import Card from "../components/ui/card";
+// import Card from "../components/ui/card";
 import TextInput from "../components/ui/TextInput";
 import SelectInput from "../components/ui/SelectInput";
-import Cta from "../components/ui/Cta";
+// import Cta from "../components/ui/Cta";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -883,20 +872,20 @@ const SignUp = () => {
                 id="password"
                 label="Password"
                 type="password"
-                value={formData.email}
+                value={formData.password}
                 onChange={(e) => updateField("password", e.target.value)}
                 required
                 placeholder="*********"
               />
             </div>
-              <TextInput
-                id="phone"
-                label="Phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => updateField("phone", e.target.value)}
-                placeholder="+34 600 000 000"
-              />
+            <TextInput
+              id="phone"
+              label="Phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+              placeholder="+34 600 000 000"
+            />
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <h4 className="font-semibold text-slate-800 mb-3">Bank Details</h4>
@@ -1192,39 +1181,56 @@ const SignUp = () => {
                   </div>
                 </button>
 
+
+                {/* Redsys Button */}
                 <button
+                  disabled
                   type="button"
                   onClick={() => setPaymentMethod("redsys")}
                   className={`p-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === "redsys"
                     ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                    : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
                     }`}
                 >
                   <div className="text-center">
-                    <svg className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "redsys" ? "text-white" : "text-red-600"}`} fill="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "redsys" ? "text-white" : "text-red-300"
+                        }`}
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                     </svg>
                     <span className="font-semibold">Redsys</span>
-                    <p className="text-xs mt-1 opacity-80">Spanish Banks</p>
+                    <p className="text-xs mt-1 opacity-50">Spanish Banks</p>
                   </div>
                 </button>
 
+                {/* Bizum Button */}
                 <button
+                  disabled
                   type="button"
                   onClick={() => setPaymentMethod("bizum")}
                   className={`p-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === "bizum"
                     ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                    : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
                     }`}
                 >
                   <div className="text-center">
-                    <svg className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "bizum" ? "text-white" : "text-blue-600"}`} fill="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "bizum" ? "text-white" : "text-blue-300"
+                        }`}
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                     <span className="font-semibold">Bizum</span>
-                    <p className="text-xs mt-1 opacity-80">Mobile Payment</p>
+                    <p className="text-xs mt-1 opacity-50">Mobile Payment</p>
                   </div>
                 </button>
+
+
               </div>
             </div>
 

@@ -888,6 +888,7 @@ const SignUp = () => {
                 required
                 placeholder="*********"
               />
+            </div>
               <TextInput
                 id="phone"
                 label="Phone"
@@ -896,7 +897,6 @@ const SignUp = () => {
                 onChange={(e) => updateField("phone", e.target.value)}
                 placeholder="+34 600 000 000"
               />
-            </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <h4 className="font-semibold text-slate-800 mb-3">Bank Details</h4>

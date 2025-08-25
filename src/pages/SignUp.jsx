@@ -2,10 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  FaCheckCircle,
-} from "react-icons/fa";
+import { AnimatePresence ,motion} from "framer-motion";
+import { FaCheckCircle } from "react-icons/fa";
 import { updatePageTitle } from "../utils/titleUtils";
 import { getOrgTypes, signUp } from "../api/apiFunction/authServices";
 import Stepper from "../components/ui/Stepper";
@@ -73,8 +71,8 @@ const SignUp = () => {
       hasCertificate === true
         ? "yes_flow"
         : hasCertificate === false
-          ? "no_flow"
-          : null;
+        ? "no_flow"
+        : null;
     const registrationFlow =
       userType === "organization" ? "company_flow" : "personal_flow";
     form.append("name", formData.name || "");
@@ -126,13 +124,13 @@ const SignUp = () => {
         { key: "cert-question", label: "Certificate" },
         { key: "cert-upload", label: "Upload/Connect" },
         { key: "editable-form", label: "Verify Details" },
-        { key: "dashboard", label: "Complete" }
+        { key: "dashboard", label: "Complete" },
       ];
     } else if (hasCertificate === false) {
       // NO Flow: Certificate → Profile → Personal/Company → Payment → Complete
       const flowSteps = [
         { key: "cert-question", label: "Certificate" },
-        { key: "profile-select", label: "Profile Type" }
+        { key: "profile-select", label: "Profile Type" },
       ];
 
       if (profileType === "personal") {
@@ -168,9 +166,6 @@ const SignUp = () => {
     setFormData((prev) => ({ ...prev, [key]: value }));
     setError("");
   };
-
-  const SERVER_PATH = import.meta.env.VITE_APP_API_URL;
-  console.log("SERVER_PATH:", SERVER_PATH); // Debugging line to check the value of SERVER_PATH
 
   const renderFooterRow = () => {
     const stepKey = steps[currentStep]?.key;
@@ -214,9 +209,24 @@ const SignUp = () => {
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                     Submitting...
                   </div>
@@ -230,9 +240,11 @@ const SignUp = () => {
                 disabled={isLoading}
                 className="px-8 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
               >
-                {stepKey === "cert-upload" ? "Verify Details" :
-                  stepKey === "payment" ? "Complete Registration" :
-                    "Continue"}
+                {stepKey === "cert-upload"
+                  ? "Verify Details"
+                  : stepKey === "payment"
+                  ? "Complete Registration"
+                  : "Continue"}
               </button>
             )}
           </div>
@@ -350,7 +362,9 @@ const SignUp = () => {
         return false;
       }
       if (administrationType === "joint" && adminCertificates.length === 0) {
-        setError("Please upload administrator certificates for joint administration");
+        setError(
+          "Please upload administrator certificates for joint administration"
+        );
         return false;
       }
     }
@@ -386,7 +400,8 @@ const SignUp = () => {
     setError("");
     setIsLoading(true);
     try {
-      if (!termsAccepted) {
+      const stepKey = steps[currentStep]?.key;
+      if (stepKey !== "editable-form" && !termsAccepted) {
         throw new Error(
           "Please accept the Terms of Service and Privacy Policy"
         );
@@ -449,15 +464,17 @@ const SignUp = () => {
                   setHasCertificate(true);
                   setCurrentStep(1); // Go to upload step
                 }}
-                className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${hasCertificate === true
-                  ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                  }`}
+                className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
+                  hasCertificate === true
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
               >
                 <div className="flex items-center justify-center mb-2">
                   <svg
-                    className={`w-6 h-6 ${hasCertificate === true ? "text-white" : "text-[#027570]"
-                      }`}
+                    className={`w-6 h-6 ${
+                      hasCertificate === true ? "text-white" : "text-[#027570]"
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -471,7 +488,9 @@ const SignUp = () => {
                   </svg>
                 </div>
                 <span className="font-semibold">Yes, I have one</span>
-                <p className="text-xs mt-2 opacity-80">Upload your existing certificate</p>
+                <p className="text-xs mt-2 opacity-80">
+                  Upload your existing certificate
+                </p>
               </button>
               <button
                 type="button"
@@ -479,15 +498,17 @@ const SignUp = () => {
                   setHasCertificate(false);
                   setCurrentStep(1); // Go to profile selection
                 }}
-                className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${hasCertificate === false
-                  ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                  }`}
+                className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
+                  hasCertificate === false
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
               >
                 <div className="flex items-center justify-center mb-2">
                   <svg
-                    className={`w-6 h-6 ${hasCertificate === false ? "text-white" : "text-[#027570]"
-                      }`}
+                    className={`w-6 h-6 ${
+                      hasCertificate === false ? "text-white" : "text-[#027570]"
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -501,7 +522,9 @@ const SignUp = () => {
                   </svg>
                 </div>
                 <span className="font-semibold">No, help me get one</span>
-                <p className="text-xs mt-2 opacity-80">Guided onboarding process</p>
+                <p className="text-xs mt-2 opacity-80">
+                  Guided onboarding process
+                </p>
               </button>
             </div>
           </div>
@@ -511,12 +534,26 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Upload Your Certificate</h3>
-              <p className="text-slate-600">Upload or connect your existing digital certificate</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Upload Your Certificate
+              </h3>
+              <p className="text-slate-600">
+                Upload or connect your existing digital certificate
+              </p>
             </div>
 
             <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-[#027570] transition-colors duration-200">
@@ -531,11 +568,11 @@ const SignUp = () => {
                   if (files.length > 0) {
                     // Simulate auto-filling data from certificate
                     setAutoFilledData(true);
-                    setFormData(prev => ({
+                    setFormData((prev) => ({
                       ...prev,
                       name: "John Doe", // This would come from certificate
                       email: "john.doe@example.com",
-                      tax_id: "12345678A"
+                      tax_id: "12345678A",
                     }));
                   }
                 }}
@@ -543,11 +580,23 @@ const SignUp = () => {
               />
               <label htmlFor="certificate" className="cursor-pointer">
                 <div className="flex flex-col items-center">
-                  <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <svg
+                    className="w-12 h-12 text-slate-400 mb-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
                   </svg>
                   <p className="text-lg font-medium text-slate-700 mb-2">
-                    {certificateFiles.length > 0 ? certificateFiles[0].name : "Click to upload certificate"}
+                    {certificateFiles.length > 0
+                      ? certificateFiles[0].name
+                      : "Click to upload certificate"}
                   </p>
                   <p className="text-sm text-slate-500">
                     Supports .pdf, .p12, .pfx, .crt, .cer files
@@ -559,12 +608,27 @@ const SignUp = () => {
             {certificateUploaded && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
-                  <p className="text-green-800 font-medium">Certificate uploaded successfully!</p>
+                  <p className="text-green-800 font-medium">
+                    Certificate uploaded successfully!
+                  </p>
                 </div>
-                <p className="text-green-700 text-sm mt-1">Your details will be automatically retrieved from AEAT/Social Security APIs.</p>
+                <p className="text-green-700 text-sm mt-1">
+                  Your details will be automatically retrieved from AEAT/Social
+                  Security APIs.
+                </p>
               </div>
             )}
           </div>
@@ -622,23 +686,51 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Verify Your Details</h3>
-              <p className="text-slate-600">Review and update your information as needed</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Verify Your Details
+              </h3>
+              <p className="text-slate-600">
+                Review and update your information as needed
+              </p>
             </div>
 
             {autoFilledData && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-5 h-5 text-blue-500 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  <p className="text-blue-800 font-medium">Information auto-filled from your certificate</p>
+                  <p className="text-blue-800 font-medium">
+                    Information auto-filled from your certificate
+                  </p>
                 </div>
-                <p className="text-blue-700 text-sm mt-1">You can edit email, phone, and bank details below.</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  You can edit email, phone, and bank details below.
+                </p>
               </div>
             )}
 
@@ -671,14 +763,22 @@ const SignUp = () => {
                 placeholder="you@example.com"
               />
               <TextInput
-                id="phone"
-                label="Phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => updateField("phone", e.target.value)}
-                placeholder="+34 600 000 000"
+                id="password"
+                label="Password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => updateField("password", e.target.value)}
+                placeholder="********"
               />
             </div>
+            <TextInput
+              id="phone"
+              label="Phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+              placeholder="+34 600 000 000"
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <TextInput
@@ -692,7 +792,9 @@ const SignUp = () => {
                 id="bank_account_holder"
                 label="Account Holder"
                 value={formData.bank_account_holder}
-                onChange={(e) => updateField("bank_account_holder", e.target.value)}
+                onChange={(e) =>
+                  updateField("bank_account_holder", e.target.value)
+                }
                 placeholder="John Doe"
               />
             </div>
@@ -700,15 +802,45 @@ const SignUp = () => {
             <div className="bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-xl p-6 mt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-lg font-semibold text-green-800 mb-1">Ready to proceed!</h4>
-                  <p className="text-green-700 text-sm">Your certificate has been verified and details retrieved.</p>
+                  <h4 className="text-lg font-semibold text-green-800 mb-1">
+                    Ready to proceed!
+                  </h4>
+                  <p className="text-green-700 text-sm">
+                    Your certificate has been verified and details retrieved.
+                  </p>
                 </div>
-                {/* <button
-                  onClick={() => navigate("/dashboard")}
-                  className="px-6 py-2 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200"
+                <button
+                  onClick={submitRegistration}
+                  disabled={isLoading}
+                  className="px-6 py-2 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Go to Dashboard
-                </button> */}
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Processing...
+                    </div>
+                  ) : (
+                    "Sign Up"
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -747,18 +879,20 @@ const SignUp = () => {
                   setProfileType("personal");
                   setCurrentStep(2);
                 }}
-                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${profileType === "personal"
-                  ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                  }`}
+                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  profileType === "personal"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
               >
                 <div className="flex flex-col items-center">
                   <div className="flex items-center justify-center mb-3">
                     <svg
-                      className={`w-8 h-8 ${profileType === "personal"
-                        ? "text-white"
-                        : "text-[#027570]"
-                        }`}
+                      className={`w-8 h-8 ${
+                        profileType === "personal"
+                          ? "text-white"
+                          : "text-[#027570]"
+                      }`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -773,10 +907,11 @@ const SignUp = () => {
                   </div>
                   <span className="font-bold text-lg">Personal</span>
                   <span
-                    className={`text-sm mt-1 ${profileType === "personal"
-                      ? "text-teal-100"
-                      : "text-slate-500"
-                      }`}
+                    className={`text-sm mt-1 ${
+                      profileType === "personal"
+                        ? "text-teal-100"
+                        : "text-slate-500"
+                    }`}
                   >
                     Individual account - Faster process
                   </span>
@@ -788,18 +923,20 @@ const SignUp = () => {
                   setProfileType("company");
                   setCurrentStep(2);
                 }}
-                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${profileType === "company"
-                  ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                  }`}
+                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  profileType === "company"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
               >
                 <div className="flex flex-col items-center">
                   <div className="flex items-center justify-center mb-3">
                     <svg
-                      className={`w-8 h-8 ${profileType === "company"
-                        ? "text-white"
-                        : "text-[#027570]"
-                        }`}
+                      className={`w-8 h-8 ${
+                        profileType === "company"
+                          ? "text-white"
+                          : "text-[#027570]"
+                      }`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -814,10 +951,11 @@ const SignUp = () => {
                   </div>
                   <span className="font-bold text-lg">Company</span>
                   <span
-                    className={`text-sm mt-1 ${profileType === "company"
-                      ? "text-teal-100"
-                      : "text-slate-500"
-                      }`}
+                    className={`text-sm mt-1 ${
+                      profileType === "company"
+                        ? "text-teal-100"
+                        : "text-slate-500"
+                    }`}
                   >
                     Business account - May require multiple certificates
                   </span>
@@ -831,12 +969,26 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Personal Information</h3>
-              <p className="text-slate-600">Enter your personal details for certificate request</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Personal Information
+              </h3>
+              <p className="text-slate-600">
+                Enter your personal details for certificate request
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -888,7 +1040,9 @@ const SignUp = () => {
             />
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <h4 className="font-semibold text-slate-800 mb-3">Bank Details</h4>
+              <h4 className="font-semibold text-slate-800 mb-3">
+                Bank Details
+              </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TextInput
                   id="bank_iban"
@@ -901,7 +1055,9 @@ const SignUp = () => {
                   id="bank_account_holder"
                   label="Account Holder"
                   value={formData.bank_account_holder}
-                  onChange={(e) => updateField("bank_account_holder", e.target.value)}
+                  onChange={(e) =>
+                    updateField("bank_account_holder", e.target.value)
+                  }
                   placeholder="John Doe"
                 />
               </div>
@@ -909,13 +1065,26 @@ const SignUp = () => {
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-start">
-                <svg className="w-5 h-5 text-blue-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-blue-500 mr-2 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <div>
-                  <p className="text-blue-800 font-medium text-sm">Next Steps</p>
+                  <p className="text-blue-800 font-medium text-sm">
+                    Next Steps
+                  </p>
                   <p className="text-blue-700 text-sm mt-1">
-                    After payment, we'll connect to FNMT to generate your request code and schedule an AEAT appointment.
+                    After payment, we'll connect to FNMT to generate your
+                    request code and schedule an AEAT appointment.
                   </p>
                 </div>
               </div>
@@ -927,12 +1096,26 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Company Information</h3>
-              <p className="text-slate-600">Enter your company details for certificate request</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Company Information
+              </h3>
+              <p className="text-slate-600">
+                Enter your company details for certificate request
+              </p>
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
@@ -944,42 +1127,57 @@ const SignUp = () => {
                   onChange={(e) => setIsAdministrator(e.target.checked)}
                   className="h-4 w-4 text-[#027570] focus:ring-[#027570] border-slate-300 rounded"
                 />
-                <label htmlFor="admin_check" className="text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="admin_check"
+                  className="text-sm font-medium text-slate-700"
+                >
                   I am an administrator of the company
                 </label>
               </div>
               {!isAdministrator && (
-                <p className="text-red-600 text-sm mt-2">Only company administrators can proceed with registration.</p>
+                <p className="text-red-600 text-sm mt-2">
+                  Only company administrators can proceed with registration.
+                </p>
               )}
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <h4 className="font-semibold text-slate-800 mb-3">Administration Type</h4>
+              <h4 className="font-semibold text-slate-800 mb-3">
+                Administration Type
+              </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setAdministrationType("individual")}
-                  className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 ${administrationType === "individual"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-[#027570]"
-                    }`}
+                  className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                    administrationType === "individual"
+                      ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-[#027570]"
+                  }`}
                 >
                   <div className="text-center">
-                    <span className="font-semibold">Individual (Solidario)</span>
-                    <p className="text-xs mt-1 opacity-80">Only one administrator certificate needed</p>
+                    <span className="font-semibold">
+                      Individual (Solidario)
+                    </span>
+                    <p className="text-xs mt-1 opacity-80">
+                      Only one administrator certificate needed
+                    </p>
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setAdministrationType("joint")}
-                  className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 ${administrationType === "joint"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-[#027570]"
-                    }`}
+                  className={`px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                    administrationType === "joint"
+                      ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-[#027570]"
+                  }`}
                 >
                   <div className="text-center">
                     <span className="font-semibold">Joint (Mancomunado)</span>
-                    <p className="text-xs mt-1 opacity-80">All administrators must provide certificates</p>
+                    <p className="text-xs mt-1 opacity-80">
+                      All administrators must provide certificates
+                    </p>
                   </div>
                 </button>
               </div>
@@ -1040,7 +1238,9 @@ const SignUp = () => {
             </div>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-              <h4 className="font-semibold text-slate-800 mb-3">Bank Details</h4>
+              <h4 className="font-semibold text-slate-800 mb-3">
+                Bank Details
+              </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <TextInput
                   id="bank_iban"
@@ -1053,7 +1253,9 @@ const SignUp = () => {
                   id="bank_account_holder"
                   label="Account Holder"
                   value={formData.bank_account_holder}
-                  onChange={(e) => updateField("bank_account_holder", e.target.value)}
+                  onChange={(e) =>
+                    updateField("bank_account_holder", e.target.value)
+                  }
                   placeholder="Company Name S.L."
                 />
               </div>
@@ -1069,15 +1271,29 @@ const SignUp = () => {
                     type="file"
                     id="company_deed"
                     accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => setCompanyDeedFile((e.target.files || [])[0] || null)}
+                    onChange={(e) =>
+                      setCompanyDeedFile((e.target.files || [])[0] || null)
+                    }
                     className="hidden"
                   />
                   <label htmlFor="company_deed" className="cursor-pointer">
-                    <svg className="w-8 h-8 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <svg
+                      className="w-8 h-8 text-slate-400 mx-auto mb-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
                     </svg>
                     <p className="text-sm text-slate-600">
-                      {companyDeedFile ? companyDeedFile.name : "Click to upload company registration"}
+                      {companyDeedFile
+                        ? companyDeedFile.name
+                        : "Click to upload company registration"}
                     </p>
                   </label>
                 </div>
@@ -1094,12 +1310,24 @@ const SignUp = () => {
                       id="admin_certs"
                       multiple
                       accept=".pdf,.p12,.pfx,.crt,.cer"
-                      onChange={(e) => setAdminCertificates(Array.from(e.target.files || []))}
+                      onChange={(e) =>
+                        setAdminCertificates(Array.from(e.target.files || []))
+                      }
                       className="hidden"
                     />
                     <label htmlFor="admin_certs" className="cursor-pointer">
-                      <svg className="w-8 h-8 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      <svg
+                        className="w-8 h-8 text-slate-400 mx-auto mb-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
                       </svg>
                       <p className="text-sm text-slate-600">
                         {adminCertificates.length > 0
@@ -1114,13 +1342,27 @@ const SignUp = () => {
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-start">
-                <svg className="w-5 h-5 text-blue-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-blue-500 mr-2 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <div>
-                  <p className="text-blue-800 font-medium text-sm">Company Flow Process</p>
+                  <p className="text-blue-800 font-medium text-sm">
+                    Company Flow Process
+                  </p>
                   <p className="text-blue-700 text-sm mt-1">
-                    After payment, we'll use the uploaded certificates to request your company certificate and connect to FNMT/AEAT for processing.
+                    After payment, we'll use the uploaded certificates to
+                    request your company certificate and connect to FNMT/AEAT
+                    for processing.
                   </p>
                 </div>
               </div>
@@ -1132,25 +1374,53 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Payment</h3>
-              <p className="text-slate-600">Complete your €20 payment to proceed with certificate processing</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Payment
+              </h3>
+              <p className="text-slate-600">
+                Complete your €20 payment to proceed with certificate processing
+              </p>
             </div>
 
             <div className="bg-gradient-to-r from-slate-50 to-teal-50 border border-slate-200 rounded-xl p-6 mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-xl flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-slate-800 font-bold text-lg">Digital Certificate Processing</p>
-                    <p className="text-slate-600 text-sm">FNMT connection & AEAT appointment scheduling</p>
+                    <p className="text-slate-800 font-bold text-lg">
+                      Digital Certificate Processing
+                    </p>
+                    <p className="text-slate-600 text-sm">
+                      FNMT connection & AEAT appointment scheduling
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -1161,19 +1431,30 @@ const SignUp = () => {
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-semibold text-slate-800 mb-3">Choose Payment Method</h4>
+              <h4 className="font-semibold text-slate-800 mb-3">
+                Choose Payment Method
+              </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("stripe")}
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === "stripe"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                    }`}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                    paymentMethod === "stripe"
+                      ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                  }`}
                 >
                   <div className="text-center">
-                    <svg className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "stripe" ? "text-white" : "text-[#635bff]"}`} viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === "stripe"
+                          ? "text-white"
+                          : "text-[#635bff]"
+                      }`}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
                     </svg>
                     <span className="font-semibold">Stripe</span>
@@ -1181,21 +1462,24 @@ const SignUp = () => {
                   </div>
                 </button>
 
-
                 {/* Redsys Button */}
                 <button
                   disabled
                   type="button"
                   onClick={() => setPaymentMethod("redsys")}
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === "redsys"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
-                    }`}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                    paymentMethod === "redsys"
+                      ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                      : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
+                  }`}
                 >
                   <div className="text-center">
                     <svg
-                      className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "redsys" ? "text-white" : "text-red-300"
-                        }`}
+                      className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === "redsys"
+                          ? "text-white"
+                          : "text-red-300"
+                      }`}
                       fill="currentColor"
                       viewBox="0 0 24 24"
                     >
@@ -1211,15 +1495,19 @@ const SignUp = () => {
                   disabled
                   type="button"
                   onClick={() => setPaymentMethod("bizum")}
-                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === "bizum"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
-                    }`}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+                    paymentMethod === "bizum"
+                      ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                      : "border-slate-300 bg-white text-slate-400 cursor-not-allowed"
+                  }`}
                 >
                   <div className="text-center">
                     <svg
-                      className={`w-8 h-8 mx-auto mb-2 ${paymentMethod === "bizum" ? "text-white" : "text-blue-300"
-                        }`}
+                      className={`w-8 h-8 mx-auto mb-2 ${
+                        paymentMethod === "bizum"
+                          ? "text-white"
+                          : "text-blue-300"
+                      }`}
                       fill="currentColor"
                       viewBox="0 0 24 24"
                     >
@@ -1229,8 +1517,6 @@ const SignUp = () => {
                     <p className="text-xs mt-1 opacity-50">Mobile Payment</p>
                   </div>
                 </button>
-
-
               </div>
             </div>
 
@@ -1244,24 +1530,49 @@ const SignUp = () => {
                     console.log(`Processing payment with ${paymentMethod}`);
                   }}
                   disabled={isPaymentConfirmed}
-                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duration-200 ${isPaymentConfirmed
-                    ? "bg-green-500 text-white shadow-lg cursor-not-allowed"
-                    : "bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570]"
-                    } focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2`}
+                  className={`w-full py-4 rounded-xl font-semibold text-lg transition-all duration-200 ${
+                    isPaymentConfirmed
+                      ? "bg-green-500 text-white shadow-lg cursor-not-allowed"
+                      : "bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570]"
+                  } focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2`}
                 >
                   {isPaymentConfirmed ? (
                     <div className="flex items-center justify-center gap-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
-                      Payment Confirmed - €20 via {paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}
+                      Payment Confirmed - €20 via{" "}
+                      {paymentMethod.charAt(0).toUpperCase() +
+                        paymentMethod.slice(1)}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                        />
                       </svg>
-                      Pay €20 with {paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}
+                      Pay €20 with{" "}
+                      {paymentMethod.charAt(0).toUpperCase() +
+                        paymentMethod.slice(1)}
                     </div>
                   )}
                 </button>
@@ -1271,12 +1582,26 @@ const SignUp = () => {
             {isPaymentConfirmed && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 mt-4">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-5 h-5 text-green-500 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                   <div>
-                    <p className="text-green-800 font-medium">Payment successful!</p>
-                    <p className="text-green-700 text-sm">Processing your certificate request...</p>
+                    <p className="text-green-800 font-medium">
+                      Payment successful!
+                    </p>
+                    <p className="text-green-700 text-sm">
+                      Processing your certificate request...
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1306,7 +1631,7 @@ const SignUp = () => {
               placeholder="••••••••"
               error={
                 formData.confirmPassword &&
-                  formData.password !== formData.confirmPassword
+                formData.password !== formData.confirmPassword
                   ? "Passwords don't match"
                   : ""
               }
@@ -1318,47 +1643,110 @@ const SignUp = () => {
           <div className="space-y-6">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Registration Complete!</h3>
-              <p className="text-slate-600">Your certificate request has been submitted successfully</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Registration Complete!
+              </h3>
+              <p className="text-slate-600">
+                Your certificate request has been submitted successfully
+              </p>
             </div>
 
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
               <div className="space-y-4">
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-5 h-5 text-green-600 mr-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
-                  <span className="text-green-800 font-medium">Payment processed (€20)</span>
+                  <span className="text-green-800 font-medium">
+                    Payment processed (€20)
+                  </span>
                 </div>
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-5 h-5 text-green-600 mr-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
-                  <span className="text-green-800 font-medium">FNMT connection initiated</span>
+                  <span className="text-green-800 font-medium">
+                    FNMT connection initiated
+                  </span>
                 </div>
                 <div className="flex items-center">
-                  <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-5 h-5 text-green-600 mr-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
-                  <span className="text-green-800 font-medium">AEAT appointment scheduled</span>
+                  <span className="text-green-800 font-medium">
+                    AEAT appointment scheduled
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-start">
-                <svg className="w-5 h-5 text-blue-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-blue-500 mr-2 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <div>
-                  <p className="text-blue-800 font-medium text-sm">What's Next?</p>
+                  <p className="text-blue-800 font-medium text-sm">
+                    What's Next?
+                  </p>
                   <p className="text-blue-700 text-sm mt-1">
-                    You'll receive an email with your appointment details and further instructions.
-                    You can track your certificate status in your dashboard.
+                    You'll receive an email with your appointment details and
+                    further instructions. You can track your certificate status
+                    in your dashboard.
                   </p>
                 </div>
               </div>
@@ -1376,7 +1764,10 @@ const SignUp = () => {
                 />
               </div>
               <div className="ml-3 text-sm">
-                <label htmlFor="terms" className="text-slate-700 leading-relaxed">
+                <label
+                  htmlFor="terms"
+                  className="text-slate-700 leading-relaxed"
+                >
                   I agree to the{" "}
                   <Link
                     to="/terms"

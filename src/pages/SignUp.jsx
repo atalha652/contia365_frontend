@@ -2,8 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { AnimatePresence ,motion} from "framer-motion";
+import { motion } from "framer-motion";
 import { FaCheckCircle } from "react-icons/fa";
+import { PiCertificateLight } from "react-icons/pi";
+import { TfiEmail } from "react-icons/tfi";
 import { updatePageTitle } from "../utils/titleUtils";
 import { getOrgTypes, signUp } from "../api/apiFunction/authServices";
 import Stepper from "../components/ui/Stepper";
@@ -31,6 +33,18 @@ const SignUp = () => {
   const [paymentMethod, setPaymentMethod] = useState(""); // 'stripe' | 'redsys' | 'bizum'
   const [certificateUploaded, setCertificateUploaded] = useState(false);
   const [autoFilledData, setAutoFilledData] = useState(false);
+
+  // membership check state
+  const [certificateId, setCertificateId] = useState("");
+  const [membershipEmail, setMembershipEmail] = useState("");
+  const [isMembershipValid, setIsMembershipValid] = useState(null); // true | false | "assistance" | null
+  const [isCertificateVerified, setIsCertificateVerified] = useState(false);
+
+  // assistance flow state
+  const [assistanceChoice, setAssistanceChoice] = useState(""); // 'myself' | 'help'
+  const [applicationType, setApplicationType] = useState(""); // 'personal' | 'company'
+  const [assistancePaymentConfirmed, setAssistancePaymentConfirmed] =
+    useState(false);
 
   // files (not uploaded yet, UI only)
   const [certificateFiles, setCertificateFiles] = useState([]);
@@ -119,32 +133,89 @@ const SignUp = () => {
 
   const steps = useMemo(() => {
     if (hasCertificate === true) {
-      // YES Flow: Certificate → Upload/Connect → Editable Form → Dashboard
-      return [
-        { key: "cert-question", label: "Certificate" },
-        { key: "cert-upload", label: "Upload/Connect" },
-        { key: "editable-form", label: "Verify Details" },
-        { key: "dashboard", label: "Complete" },
-      ];
-    } else if (hasCertificate === false) {
-      // NO Flow: Certificate → Profile → Personal/Company → Payment → Complete
-      const flowSteps = [
-        { key: "cert-question", label: "Certificate" },
-        { key: "profile-select", label: "Profile Type" },
+      // YES Flow with assistance path
+      const baseSteps = [
+        { key: "cert-question", label: "Verfication" },
+        { key: "membership-check", label: "Assistance Offer" },
       ];
 
-      if (profileType === "personal") {
-        flowSteps.push(
-          { key: "personal-details", label: "Personal Info" },
-          { key: "payment", label: "Payment" },
-          { key: "complete", label: "Complete" }
+      // If certificate ID correct but email wrong -> assistance flow
+      if (isMembershipValid === "assistance") {
+        baseSteps.push({
+          key: "assistance-offer-certificate",
+          label: "Assistance",
+        });
+
+        if (assistanceChoice === "help") {
+          baseSteps.push({
+            key: "choose-application-type",
+            label: "Application Type",
+          });
+
+          if (applicationType === "personal") {
+            baseSteps.push(
+              { key: "personal-details", label: "Personal Info" },
+              { key: "assistance-payment", label: "Payment" }
+            );
+          } else if (applicationType === "company") {
+            baseSteps.push(
+              { key: "company-details", label: "Company Info" },
+              { key: "assistance-payment", label: "Payment" }
+            );
+          }
+        }
+      } else {
+        // Normal YES flow
+        baseSteps.push(
+          { key: "editable-form", label: "Verify Details" },
+          { key: "dashboard", label: "Complete" }
         );
-      } else if (profileType === "company") {
-        flowSteps.push(
-          { key: "company-details", label: "Company Info" },
-          { key: "payment", label: "Payment" },
-          { key: "complete", label: "Complete" }
-        );
+      }
+
+      return baseSteps;
+    } else if (hasCertificate === false) {
+      // NO Flow: Certificate → Assistance Offer → Profile/Application Type → Personal/Company → Payment → Complete
+      const flowSteps = [
+        { key: "cert-question", label: "Create Profile" },
+        { key: "assistance-offer", label: "Assistance Offer" },
+      ];
+
+      if (assistanceChoice === "help") {
+        flowSteps.push({
+          key: "choose-application-type",
+          label: "Application Type",
+        });
+
+        if (applicationType === "personal") {
+          flowSteps.push(
+            { key: "personal-details", label: "Personal Info" },
+            { key: "assistance-payment", label: "Payment" }
+          );
+        } else if (applicationType === "company") {
+          flowSteps.push(
+            { key: "company-details", label: "Company Info" },
+            { key: "assistance-payment", label: "Payment" }
+          );
+        }
+      } else if (assistanceChoice === "myself") {
+        // User will be redirected to NADRA, no additional steps needed
+      } else {
+        // Default flow if no assistance choice made yet
+        flowSteps.push({ key: "profile-select", label: "Profile Type" });
+
+        if (profileType === "personal") {
+          flowSteps.push(
+            { key: "personal-details", label: "Personal Info" },
+            { key: "payment", label: "Payment" },
+            { key: "complete", label: "Complete" }
+          );
+        } else if (profileType === "company") {
+          flowSteps.push(
+            { key: "company-details", label: "Company Info" },
+            { key: "payment", label: "Payment" },
+            { key: "complete", label: "Complete" }
+          );
+        }
       }
 
       return flowSteps;
@@ -152,7 +223,13 @@ const SignUp = () => {
       // Initial state
       return [{ key: "cert-question", label: "Certificate" }];
     }
-  }, [hasCertificate, profileType]);
+  }, [
+    hasCertificate,
+    profileType,
+    isMembershipValid,
+    assistanceChoice,
+    applicationType,
+  ]);
 
   const visibleStepIndex = useMemo(() => {
     // Map our logical currentStep to index within steps array, given dynamic personal/company step
@@ -173,9 +250,22 @@ const SignUp = () => {
     const isComplete = stepKey === "complete";
     const isDashboard = stepKey === "dashboard";
     const isEditableForm = stepKey === "editable-form";
+    const isMembershipCheck = stepKey === "membership-check";
+    const isAssistanceOffer = stepKey === "assistance-offer-certificate";
+    const isChooseApplicationType = stepKey === "choose-application-type";
+    const isAssistancePayment = stepKey === "assistance-payment";
+    const isAssistanceConfirmation = stepKey === "assistance-confirmation";
 
-    // Hide footer for dashboard and editable-form steps (they have their own navigation)
-    if (isDashboard || isEditableForm) {
+    // Hide footer for steps with custom navigation
+    if (
+      isDashboard ||
+      isEditableForm ||
+      isMembershipCheck ||
+      isAssistancePayment ||
+      isAssistanceConfirmation
+      // isAssistanceOffer ||
+      // isChooseApplicationType
+    ) {
       return null;
     }
 
@@ -283,6 +373,18 @@ const SignUp = () => {
     }
 
     // YES Flow validations
+    if (stepKey === "membership-check") {
+      if (!certificateId || certificateId.trim() === "") {
+        setError("Certificate ID is required");
+        return false;
+      }
+      // Email is optional, but if provided, it must be valid
+      if (membershipEmail && !emailRegex.test(membershipEmail)) {
+        setError("Please enter a valid email address");
+        return false;
+      }
+    }
+
     if (stepKey === "cert-upload") {
       if (certificateFiles.length === 0) {
         setError("Please upload your digital certificate");
@@ -291,16 +393,35 @@ const SignUp = () => {
     }
 
     if (stepKey === "editable-form") {
+      if (!formData.name || formData.name.trim() === "") {
+        setError("Full name is required");
+        return false;
+      }
+      if (!formData.tax_id || formData.tax_id.trim() === "") {
+        setError("DNI/NIE is required");
+        return false;
+      }
       if (!formData.email || !emailRegex.test(formData.email)) {
         setError("Valid email is required");
         return false;
       }
-      if (!formData.phone) {
+      if (!formData.password || formData.password.length < 6) {
+        setError("Password must be at least 6 characters long");
+        return false;
+      }
+      if (!formData.phone || formData.phone.trim() === "") {
         setError("Phone number is required");
         return false;
       }
-      if (!formData.bank_iban || !formData.bank_account_holder) {
-        setError("Bank details (IBAN and account holder) are required");
+      if (!formData.bank_iban || formData.bank_iban.trim() === "") {
+        setError("IBAN is required");
+        return false;
+      }
+      if (
+        !formData.bank_account_holder ||
+        formData.bank_account_holder.trim() === ""
+      ) {
+        setError("Account holder name is required");
         return false;
       }
     }
@@ -400,12 +521,12 @@ const SignUp = () => {
     setError("");
     setIsLoading(true);
     try {
-      const stepKey = steps[currentStep]?.key;
-      if (stepKey !== "editable-form" && !termsAccepted) {
-        throw new Error(
-          "Please accept the Terms of Service and Privacy Policy"
-        );
-      }
+      // const stepKey = steps[currentStep]?.key;
+      // if (stepKey !== "editable-form" && !termsAccepted) {
+      //   throw new Error(
+      //     "Please accept the Terms of Service and Privacy Policy"
+      //   );
+      // }
 
       const form = buildRegistrationFormData();
       const response = await signUp(form);
@@ -462,7 +583,7 @@ const SignUp = () => {
                 type="button"
                 onClick={() => {
                   setHasCertificate(true);
-                  setCurrentStep(1); // Go to upload step
+                  setCurrentStep(1);
                 }}
                 className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
                   hasCertificate === true
@@ -496,7 +617,7 @@ const SignUp = () => {
                 type="button"
                 onClick={() => {
                   setHasCertificate(false);
-                  setCurrentStep(1); // Go to profile selection
+                  setCurrentStep(1);
                 }}
                 className={`group relative px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
                   hasCertificate === false
@@ -529,7 +650,7 @@ const SignUp = () => {
             </div>
           </div>
         );
-      case "cert-upload":
+      case "membership-check":
         return (
           <div className="space-y-6">
             <div className="text-center mb-6">
@@ -544,72 +665,116 @@ const SignUp = () => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                   />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                Upload Your Certificate
+                Membership Check
               </h3>
               <p className="text-slate-600">
-                Upload or connect your existing digital certificate
+                Enter your Certificate ID and email address (optional)
               </p>
             </div>
 
-            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-[#027570] transition-colors duration-200">
-              <input
-                type="file"
-                id="certificate"
-                accept=".pdf,.p12,.pfx,.crt,.cer"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  setCertificateFiles(files);
-                  setCertificateUploaded(files.length > 0);
-                  if (files.length > 0) {
-                    // Simulate auto-filling data from certificate
-                    setAutoFilledData(true);
-                    setFormData((prev) => ({
-                      ...prev,
-                      name: "John Doe", // This would come from certificate
-                      email: "john.doe@example.com",
-                      tax_id: "12345678A",
-                    }));
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+              <div className="flex items-center">
+                <svg
+                  className="w-5 h-5 text-blue-500 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <p className="text-blue-800 font-medium">
+                    Hardcoded Test Data:
+                  </p>
+                  <p className="text-blue-700 text-sm mt-1">
+                    Certificate ID:{" "}
+                    <span className="font-mono">INV-2024-001</span>
+                  </p>
+                  <p className="text-blue-700 text-sm">
+                    Email: <span className="font-mono">member@example.com</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <TextInput
+                id="certificate_id"
+                label="Certificate ID"
+                value={certificateId}
+                onChange={(e) => setCertificateId(e.target.value)}
+                required
+                placeholder="Enter your certificate ID"
+                endAdornment={<PiCertificateLight />}
+              />
+
+              <TextInput
+                id="membership_email"
+                label="Email Address (Optional)"
+                type="email"
+                value={membershipEmail}
+                onChange={(e) => setMembershipEmail(e.target.value)}
+                placeholder="Enter your email address"
+                endAdornment={<TfiEmail />}
+              />
+            </div>
+
+            <div className="flex justify-between items-center">
+              <button
+                type="button"
+                onClick={goBack}
+                className="px-6 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const hardcodedEmail = "member@example.com";
+                  const hardcodedCertificateId = "INV-2024-001";
+
+                  // Check certificate ID first
+                  if (certificateId !== hardcodedCertificateId) {
+                    // Wrong certificate ID - redirect to profile select
+                    setHasCertificate(false);
+                    setCurrentStep(1);
+                    return;
+                  }
+
+                  // Certificate ID is correct, now check email
+                  if (membershipEmail === hardcodedEmail) {
+                    // Both correct - redirect to sign in
+                    setIsMembershipValid(true);
+                    navigate("/sign-in");
+                  } else {
+                    // Correct certificate ID but wrong/empty email - assistance flow
+                    setIsMembershipValid("assistance");
+                    goNext();
                   }
                 }}
-                className="hidden"
-              />
-              <label htmlFor="certificate" className="cursor-pointer">
-                <div className="flex flex-col items-center">
-                  <svg
-                    className="w-12 h-12 text-slate-400 mb-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  <p className="text-lg font-medium text-slate-700 mb-2">
-                    {certificateFiles.length > 0
-                      ? certificateFiles[0].name
-                      : "Click to upload certificate"}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Supports .pdf, .p12, .pfx, .crt, .cer files
-                  </p>
-                </div>
-              </label>
+                disabled={!certificateId}
+                className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+              >
+                Check Membership
+              </button>
             </div>
 
-            {certificateUploaded && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            {isMembershipValid === false && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                 <div className="flex items-center">
                   <svg
-                    className="w-5 h-5 text-green-500 mr-2"
+                    className="w-5 h-5 text-yellow-500 mr-2"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -618,70 +783,20 @@ const SignUp = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
                     />
                   </svg>
-                  <p className="text-green-800 font-medium">
-                    Certificate uploaded successfully!
+                  <p className="text-yellow-800 font-medium">
+                    No existing membership found. Proceeding with new
+                    registration.
                   </p>
                 </div>
-                <p className="text-green-700 text-sm mt-1">
-                  Your details will be automatically retrieved from AEAT/Social
-                  Security APIs.
-                </p>
               </div>
             )}
           </div>
         );
-      case "details":
-        return (
-          <div className="space-y-4">
-            <TextInput
-              id="name"
-              label="Full Name"
-              value={formData.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              required
-              placeholder="John Doe"
-            />
-            <TextInput
-              id="email"
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => updateField("email", e.target.value)}
-              required
-              placeholder="you@example.com"
-            />
-            <TextInput
-              id="phone"
-              label="Phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+34 600 000 000"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <TextInput
-                id="bank_iban"
-                label="IBAN"
-                value={formData.bank_iban}
-                onChange={(e) => updateField("bank_iban", e.target.value)}
-                placeholder="ES91 2100 0418 4502 0005 1332"
-              />
-              <TextInput
-                id="bank_account_holder"
-                label="Account Holder"
-                value={formData.bank_account_holder}
-                onChange={(e) =>
-                  updateField("bank_account_holder", e.target.value)
-                }
-                placeholder="John Doe"
-              />
-            </div>
-          </div>
-        );
-      case "editable-form":
+
+      case "assistance-offer-certificate":
         return (
           <div className="space-y-6">
             <div className="text-center mb-6">
@@ -696,23 +811,39 @@ const SignUp = () => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
               </div>
               <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                Verify Your Details
+                Assistance Maintenance
               </h3>
               <p className="text-slate-600">
-                Review and update your information as needed
+                This procedure is free if you do it yourself. If you want us to
+                handle it, there is a processing fee.
               </p>
             </div>
 
-            {autoFilledData && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                <div className="flex items-center">
+            <div className="w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssistanceChoice("help");
+                  goNext();
+                }}
+                className={`w-full group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  assistanceChoice === "help"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
+              >
+                <div className="flex flex-col items-center">
                   <svg
-                    className="w-5 h-5 text-blue-500 mr-2"
+                    className={`w-8 h-8 mb-3 ${
+                      assistanceChoice === "help"
+                        ? "text-white"
+                        : "text-[#027570]"
+                    }`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -721,127 +852,255 @@ const SignUp = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <p className="text-blue-800 font-medium">
-                    Information auto-filled from your certificate
+                  <span className="font-bold text-lg">Yes, I Need Help</span>
+                  <span
+                    className={`text-sm mt-1 ${
+                      assistanceChoice === "help"
+                        ? "text-orange-100"
+                        : "text-orange-600"
+                    }`}
+                  >
+                    Processing Fee
+                  </span>
+                  <p className="text-xs mt-2 opacity-80">
+                    We handle everything for you
                   </p>
                 </div>
-                <p className="text-blue-700 text-sm mt-1">
-                  You can edit email, phone, and bank details below.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextInput
-                id="name"
-                label="Full Name"
-                value={formData.name}
-                onChange={(e) => updateField("name", e.target.value)}
-                disabled={autoFilledData}
-                className={autoFilledData ? "bg-gray-50" : ""}
-              />
-              <TextInput
-                id="tax_id"
-                label="DNI/NIE"
-                value={formData.tax_id}
-                onChange={(e) => updateField("tax_id", e.target.value)}
-                disabled={autoFilledData}
-                className={autoFilledData ? "bg-gray-50" : ""}
-              />
+              </button>
             </div>
+          </div>
+        );
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextInput
-                id="email"
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                placeholder="you@example.com"
-              />
-              <TextInput
-                id="password"
-                label="Password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => updateField("password", e.target.value)}
-                placeholder="********"
-              />
-            </div>
-            <TextInput
-              id="phone"
-              label="Phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+34 600 000 000"
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextInput
-                id="bank_iban"
-                label="IBAN"
-                value={formData.bank_iban}
-                onChange={(e) => updateField("bank_iban", e.target.value)}
-                placeholder="ES91 2100 0418 4502 0005 1332"
-              />
-              <TextInput
-                id="bank_account_holder"
-                label="Account Holder"
-                value={formData.bank_account_holder}
-                onChange={(e) =>
-                  updateField("bank_account_holder", e.target.value)
-                }
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div className="bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-xl p-6 mt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-lg font-semibold text-green-800 mb-1">
-                    Ready to proceed!
-                  </h4>
-                  <p className="text-green-700 text-sm">
-                    Your certificate has been verified and details retrieved.
-                  </p>
-                </div>
-                <button
-                  onClick={submitRegistration}
-                  disabled={isLoading}
-                  className="px-6 py-2 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      case "assistance-offer":
+        return (
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  {isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="animate-spin h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Processing...
-                    </div>
-                  ) : (
-                    "Sign Up"
-                  )}
-                </button>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
               </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Assistance Offer
+              </h3>
+              <p className="text-slate-600">
+                This procedure is free if you do it yourself. If you want us to
+                handle it, there is a processing fee.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setAssistanceChoice("myself");
+                  // Redirect to NADRA website
+                  window.open("https://id.nadra.gov.pk/e-id/", "_blank");
+                }}
+                className="group relative px-6 py-6 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:border-green-500 hover:shadow-md transition-all duration-200"
+              >
+                <div className="flex flex-col items-center">
+                  <svg
+                    className="w-8 h-8 text-green-600 mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                  <span className="font-bold text-lg">Do it yourself</span>
+                  <span className="text-sm mt-1 text-green-600">Free</span>
+                  <p className="text-xs mt-2 opacity-80">Self-service option</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAssistanceChoice("help");
+                }}
+                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  assistanceChoice === "help"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <svg
+                    className={`w-8 h-8 mb-3 ${
+                      assistanceChoice === "help"
+                        ? "text-white"
+                        : "text-[#027570]"
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className="font-bold text-lg">Yes, I Need Help</span>
+                  <span
+                    className={`text-sm mt-1 ${
+                      assistanceChoice === "help"
+                        ? "text-orange-100"
+                        : "text-orange-600"
+                    }`}
+                  >
+                    Processing Fee
+                  </span>
+                  <p className="text-xs mt-2 opacity-80">
+                    We handle everything for you
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+        );
+
+      case "choose-application-type":
+        return (
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Choose Application Type
+              </h3>
+              <p className="text-slate-600">
+                What type of application do you need?
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setApplicationType("personal");
+                  setProfileType("personal");
+                  goNext();
+                }}
+                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  applicationType === "personal"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <svg
+                    className={`w-8 h-8 mb-3 ${
+                      applicationType === "personal"
+                        ? "text-white"
+                        : "text-[#027570]"
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                  <span className="font-bold text-lg">Personal</span>
+                  <span
+                    className={`text-lg font-bold mt-1 ${
+                      applicationType === "personal"
+                        ? "text-teal-100"
+                        : "text-[#027570]"
+                    }`}
+                  >
+                    €20
+                  </span>
+                  <p className="text-xs mt-2 opacity-80">
+                    Individual certificate application
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setApplicationType("company");
+                  setProfileType("company");
+                  goNext();
+                }}
+                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
+                  applicationType === "company"
+                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                }`}
+              >
+                <div className="flex flex-col items-center">
+                  <svg
+                    className={`w-8 h-8 mb-3 ${
+                      applicationType === "company"
+                        ? "text-white"
+                        : "text-[#027570]"
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
+                  </svg>
+                  <span className="font-bold text-lg">Company</span>
+                  <span
+                    className={`text-lg font-bold mt-1 ${
+                      applicationType === "company"
+                        ? "text-teal-100"
+                        : "text-[#027570]"
+                    }`}
+                  >
+                    €50
+                  </span>
+                  <p className="text-xs mt-2 opacity-80">
+                    Business / Third-Party application
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
         );
@@ -1228,14 +1487,24 @@ const SignUp = () => {
                 placeholder="company@example.com"
               />
               <TextInput
-                id="phone"
-                label="Phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => updateField("phone", e.target.value)}
-                placeholder="+34 900 000 000"
+                id="password"
+                label="Password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => updateField("password", e.target.value)}
+                required
+                placeholder="*********"
               />
             </div>
+
+            <TextInput
+              id="phone"
+              label="Phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => updateField("phone", e.target.value)}
+              placeholder="+34 900 000 000"
+            />
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
               <h4 className="font-semibold text-slate-800 mb-3">
@@ -1608,36 +1877,170 @@ const SignUp = () => {
             )}
           </div>
         );
-      case "security":
+
+      case "assistance-payment":
         return (
-          <div className="space-y-4">
-            <TextInput
-              id="password"
-              label="Create Password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => updateField("password", e.target.value)}
-              required
-              placeholder="••••••••"
-              helpText="At least 6 characters"
-            />
-            <TextInput
-              id="confirm_password"
-              label="Confirm Password"
-              type="password"
-              value={formData.confirmPassword}
-              onChange={(e) => updateField("confirmPassword", e.target.value)}
-              required
-              placeholder="••••••••"
-              error={
-                formData.confirmPassword &&
-                formData.password !== formData.confirmPassword
-                  ? "Passwords don't match"
-                  : ""
-              }
-            />
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                Assistance Payment
+              </h3>
+              <p className="text-slate-600">
+                Complete payment for professional assistance
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-r from-slate-50 to-teal-50 border border-slate-200 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-xl flex items-center justify-center mr-4">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-slate-800 font-bold text-lg">
+                      {applicationType === "personal"
+                        ? "Personal Application"
+                        : "Company Application"}
+                    </p>
+                    <p className="text-slate-600 text-sm">
+                      Professional assistance service
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-[#027570]">
+                    €{applicationType === "personal" ? "20" : "50"}
+                  </p>
+                  <p className="text-slate-500 text-sm">Processing fee</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <button
+                type="button"
+                onClick={goBack}
+                className="px-6 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+              >
+                Back
+              </button>
+
+              {/* <button
+                type="button"
+                onClick={() => {
+                  setAssistancePaymentConfirmed(true);
+                  toast.success(
+                    "Payment successful! Please complete your registration."
+                  );
+                }}
+                className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+              >
+                Pay Now €{applicationType === "personal" ? "20" : "50"}
+              </button> */}
+              <div className="flex gap-4">
+                {/* Cash Payment Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistancePaymentConfirmed(true);
+                    toast.success(
+                      "Cash payment confirmed! Please complete your registration."
+                    );
+                  }}
+                  className="px-6 py-2.5 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-yellow-600 hover:to-yellow-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-600 focus:ring-offset-2"
+                >
+                   Cash €{applicationType === "personal" ? "20" : "50"}
+                </button>
+
+                {/* Bank Payment Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssistancePaymentConfirmed(true);
+                    toast.success(
+                      "Bank payment successful! Please complete your registration."
+                    );
+                  }}
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+                >
+                  Pay with Bank €{applicationType === "personal" ? "20" : "50"}
+                </button>
+              </div>
+            </div>
+
+            {assistancePaymentConfirmed && (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-green-500 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-green-800 font-medium">
+                        Payment successful!
+                      </p>
+                      <p className="text-green-700 text-sm">
+                        Please complete your registration to create your
+                        account.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full">
+                  <button
+                    type="button"
+                    onClick={submitRegistration}
+                    disabled={isLoading}
+                    className="w-full px-8 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading
+                      ? "Creating Account..."
+                      : "Complete Registration"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
+
       case "complete":
         return (
           <div className="space-y-6">
@@ -1787,15 +2190,9 @@ const SignUp = () => {
                 </label>
               </div>
             </div>
-
-            {/* <button
-              onClick={() => navigate("/dashboard")}
-              className="w-full py-4 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
-            >
-              Go to Dashboard
-            </button> */}
           </div>
         );
+
       default:
         return null;
     }
@@ -1806,7 +2203,7 @@ const SignUp = () => {
   }, []);
 
   const subtitle = useMemo(() => {
-    return "We’ll guide you step by step. You can edit email, phone and bank later.";
+    return "We'll guide you step by step. You can edit email, phone and bank later.";
   }, []);
 
   return (

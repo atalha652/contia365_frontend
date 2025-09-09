@@ -5,12 +5,16 @@ import { useOutletContext } from 'react-router-dom';
 import {
     FolderOpen,
     MoreHorizontal,
+    Download,
     Calendar,
     FileText,
-    Eye
+    Eye,
+    ScanLine,
+    Loader2
 } from 'lucide-react';
 import { formatDateTime } from '../../../utils/helperFunction';
-import { deleteProject } from '../../../api/apiFunction/projectServices';
+import { deleteProject, runOCR } from '../../../api/apiFunction/projectServices';
+// import OCRModal from "./OCRModal";
 import { toast } from 'react-toastify';
 import ProjectImageModal from './ProjectImageModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
@@ -23,6 +27,12 @@ const ProjectsList = () => {
     const [previewTitle, setPreviewTitle] = useState('Preview');
     const [deletingProject, setDeletingProject] = useState(null);
     const menuRef = useRef(null);
+    const [ocrModalOpen, setOcrModalOpen] = useState(false);
+    const [ocrText, setOcrText] = useState("");
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const [ocrPdfUrl, setOcrPdfUrl] = useState(null);
+    const [ocrStates, setOcrStates] = useState({});
+
 
     // Close actions dropdown when clicking outside (portal-aware)
     useEffect(() => {
@@ -51,6 +61,13 @@ const ProjectsList = () => {
             window.removeEventListener('scroll', handleScroll, true);
         };
     }, [menu]);
+    const handleDownloadPdf = (pdfUrl) => {
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = "ocr_result.pdf";
+        link.click();
+    };
+
 
     // Custom Folder SVG Component
     const FolderIcon = ({ color = '#0ac5a8', size = 32 }) => (
@@ -88,7 +105,7 @@ const ProjectsList = () => {
 
     const handleDeleteConfirm = async () => {
         if (!deletingProject) return;
-        
+
         try {
             const res = await deleteProject(deletingProject);
             if (res?.status === 200) {
@@ -118,21 +135,84 @@ const ProjectsList = () => {
     };
 
     const getStatusBadge = (status) => {
+        if (!status) return null;
+
+        // Normalize API status (e.g., "Success" -> "success")
+        const normalized = status.toLowerCase();
+
         const statusConfig = {
-            pending: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200', text: 'Pending' },
-            active: { color: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200', text: 'Active' },
-            completed: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200', text: 'Completed' },
-            inactive: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200', text: 'Inactive' },
-            archived: { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200', text: 'Archived' }
+            pending: {
+                color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200",
+                text: "Pending",
+            },
+            success: {
+                color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
+                text: "Success",
+            },
+            failed: {
+                color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+                text: "Failed",
+            },
+            processing: {
+                color: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
+                text: "Processing",
+            },
         };
 
-        const config = statusConfig[status] || statusConfig.inactive;
+        const config = statusConfig[normalized] || {
+            color: "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200",
+            text: status, // fallback to show raw API value
+        };
+
         return (
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
                 {config.text}
             </span>
         );
     };
+
+    const handleOcrClick = async (projectId) => {
+        // mark as processing
+        setOcrStates((prev) => ({
+            ...prev,
+            [projectId]: { loading: true, pdfUrl: null }
+        }));
+
+        try {
+            const userDataString = localStorage.getItem("user");
+            const user = JSON.parse(userDataString || "{}");
+            if (!user?.user_id) throw new Error("User not found");
+
+            const data = await runOCR({ user_id: user.user_id, project_id: projectId });
+
+            if (data?.results?.length > 0) {
+                const firstResult = data.results[0];
+                setOcrStates((prev) => ({
+                    ...prev,
+                    [projectId]: {
+                        loading: false,
+                        pdfUrl: firstResult.result_url || null
+                    }
+                }));
+            } else {
+                toast.error("No OCR results returned");
+                setOcrStates((prev) => ({
+                    ...prev,
+                    [projectId]: { loading: false, pdfUrl: null }
+                }));
+            }
+        } catch (err) {
+            console.error("OCR error:", err);
+            toast.error("OCR processing failed");
+            setOcrStates((prev) => ({
+                ...prev,
+                [projectId]: { loading: false, pdfUrl: null }
+            }));
+        }
+    };
+
+
+
 
     return (
         <div className="space-y-6">
@@ -167,7 +247,7 @@ const ProjectsList = () => {
                                         <th className="px-6 py-3 text-left text-xs font-medium text-fg-60 uppercase tracking-wider">
                                             Created
                                         </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-fg-60 uppercase tracking-wider">
+                                        <th className="px-6 py-3 text-center text-xs font-medium text-fg-60 uppercase tracking-wider">
                                             Actions
                                         </th>
                                     </tr>
@@ -229,6 +309,28 @@ const ProjectsList = () => {
                                             {/* Actions */}
                                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div className="relative inline-flex items-center gap-2">
+                                                    {/* OCR / Processing / Download */}
+                                                    {ocrStates[project._id]?.loading ? (
+                                                        <Loader2 size={16} className="animate-spin text-blue-500" title="Processing..." />
+                                                    ) : ocrStates[project._id]?.pdfUrl ? (
+                                                        <button
+                                                            onClick={() => handleDownloadPdf(ocrStates[project._id].pdfUrl)}
+                                                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                                                            title="Download OCR PDF"
+                                                        >
+                                                            <Download size={16} />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handleOcrClick(project._id)}
+                                                            className="p-1 text-fg-60 hover:text-fg-50 transition-colors"
+                                                            title="Run OCR"
+                                                        >
+                                                            <ScanLine size={16} />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Existing Preview button */}
                                                     <button
                                                         onClick={() => {
                                                             if (project?.package_url) {
@@ -243,11 +345,13 @@ const ProjectsList = () => {
                                                     >
                                                         <Eye size={16} />
                                                     </button>
+
+                                                    {/* Existing More actions */}
                                                     <button
                                                         onClick={(e) => {
                                                             const rect = e.currentTarget.getBoundingClientRect();
-                                                            const MENU_WIDTH = 192; // w-48
-                                                            const ESTIMATED_HEIGHT = 112; // approx height of 2-3 items
+                                                            const MENU_WIDTH = 192;
+                                                            const ESTIMATED_HEIGHT = 112;
                                                             const spaceBelow = window.innerHeight - rect.bottom;
                                                             const placeAbove = spaceBelow < ESTIMATED_HEIGHT + 16;
                                                             const top = placeAbove ? rect.top - 8 : rect.bottom + 8;
@@ -263,6 +367,7 @@ const ProjectsList = () => {
                                                         <MoreHorizontal size={16} />
                                                     </button>
                                                 </div>
+
                                             </td>
                                         </tr>
                                     ))}
@@ -315,6 +420,16 @@ const ProjectsList = () => {
                 </div>,
                 document.body
             )}
+            {/* <OCRModal
+                isOpen={ocrModalOpen}
+                onClose={() => setOcrModalOpen(false)}
+                ocrText={ocrText}
+                pdfUrl={ocrPdfUrl}
+                loading={ocrLoading}
+            /> */}
+
+
+
         </div>
     );
 };

@@ -43,7 +43,7 @@ const SignUp = () => {
     email: "",
     password: "",
     phone: "",
-    password: "",
+    // password: "",
     confirmPassword: "",
     tax_id: "", // DNI/NIE or VAT
     bank_iban: "",

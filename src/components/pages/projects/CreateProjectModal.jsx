@@ -1,6 +1,6 @@
 // frontend/src/components/pages/projects/CreateProjectModal.jsx
 import { useState } from "react";
-import { X, Upload } from "lucide-react";
+import { X, Upload, FileImage, Trash2 } from "lucide-react";
 
 const DEFAULT_COLORS = [
     "#da4252",
@@ -17,10 +17,10 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
         title: "",
         description: "",
         color: "#0ac5a8", // Default to brand color
-        file: null
+        files: []
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [fileName, setFileName] = useState("");
+    const [imagePreviews, setImagePreviews] = useState([]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -35,8 +35,8 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
             return;
         }
 
-        if (!formData.file) {
-            alert("Project file is required");
+        if (!formData.files.length) {
+            alert("At least one image file is required");
             return;
         }
 
@@ -59,14 +59,48 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
     };
 
     const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
+        const files = Array.from(e.target.files);
+        
+        // Filter only image files
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        
+        if (imageFiles.length !== files.length) {
+            alert("Please select only image files (JPG, PNG, GIF, etc.)");
+        }
+
+        if (imageFiles.length > 0) {
             setFormData(prev => ({
                 ...prev,
-                file: file
+                files: [...prev.files, ...imageFiles]
             }));
-            setFileName(file.name);
+
+            // Create preview URLs for new images
+            const newPreviews = imageFiles.map(file => ({
+                file,
+                url: URL.createObjectURL(file),
+                name: file.name
+            }));
+
+            setImagePreviews(prev => [...prev, ...newPreviews]);
         }
+
+        // Clear the input to allow selecting the same files again
+        e.target.value = '';
+    };
+
+    const removeFile = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            files: prev.files.filter((_, i) => i !== index)
+        }));
+
+        // Clean up preview URL and remove from previews
+        const previewToRemove = imagePreviews[index];
+        if (previewToRemove) {
+            URL.revokeObjectURL(previewToRemove.url);
+        }
+        
+        setImagePreviews(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleColorSelect = (color) => {
@@ -75,6 +109,15 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
             color: color
         }));
     };
+
+    // Clean up preview URLs when component unmounts
+    useState(() => {
+        return () => {
+            imagePreviews.forEach(preview => {
+                URL.revokeObjectURL(preview.url);
+            });
+        };
+    }, []);
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -154,32 +197,90 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                 </div>
             </div>
 
-            {/* Project File */}
+            {/* Image Files */}
             <div>
                 <label htmlFor="file" className="block text-sm font-medium text-fg-50 mb-2">
-                    Project File *
+                    Image Files * ({formData.files.length} selected)
                 </label>
                 <div className="space-y-3">
+                    {/* Upload Button */}
                     <div className="flex items-center gap-3">
                         <input
                             type="file"
                             id="file"
                             name="file"
+                            multiple
+                            accept="image/*"
                             onChange={handleFileChange}
                             className="hidden"
-                            required
                         />
                         <label
                             htmlFor="file"
                             className="flex items-center gap-2 px-4 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 cursor-pointer hover:bg-bg-40 transition-colors"
                         >
                             <Upload size={16} />
-                            Choose File
+                            Add Images
                         </label>
                         <span className="text-sm text-fg-60">
-                            {fileName || "No file chosen"}
+                            Select multiple image files (JPG, PNG, GIF, etc.)
                         </span>
                     </div>
+
+                    {/* Image Previews */}
+                    {imagePreviews.length > 0 && (
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-medium text-fg-50">Selected Images:</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto">
+                                {imagePreviews.map((preview, index) => (
+                                    <div key={index} className="relative group">
+                                        <div className="aspect-square rounded-md overflow-hidden border border-bd-50 bg-bg-40">
+                                            <img
+                                                src={preview.url}
+                                                alt={preview.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFile(index)}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Remove image"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate">
+                                            {preview.name}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* File List (Alternative view for smaller screens) */}
+                    {formData.files.length > 0 && (
+                        <div className="md:hidden">
+                            <h4 className="text-sm font-medium text-fg-50 mb-2">Files:</h4>
+                            <div className="space-y-2">
+                                {formData.files.map((file, index) => (
+                                    <div key={index} className="flex items-center justify-between p-2 border border-bd-50 rounded-md bg-bg-40">
+                                        <div className="flex items-center gap-2">
+                                            <FileImage size={16} className="text-fg-60" />
+                                            <span className="text-sm text-fg-50 truncate">{file.name}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFile(index)}
+                                            className="text-red-500 hover:text-red-600 p-1"
+                                            title="Remove file"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -195,14 +296,19 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                 </button>
                 <button
                     type="submit"
-                    disabled={isSubmitting || !formData.title.trim() || !formData.description.trim() || !formData.file}
+                    disabled={
+                        isSubmitting ||
+                        !formData.title.trim() ||
+                        !formData.description.trim() ||
+                        !formData.files.length
+                    }
                     className="px-4 py-2 bg-ac-02 hover:bg-ac-01 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isSubmitting ? "Creating..." : "Create Project"}
+                    {isSubmitting ? "Creating..." : `Create Project (${formData.files.length} images)`}
                 </button>
             </div>
         </form>
     );
 };
 
-export default CreateProjectModal; 
+export default CreateProjectModal;

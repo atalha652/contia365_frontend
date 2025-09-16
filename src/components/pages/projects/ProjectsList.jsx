@@ -13,11 +13,12 @@ import {
     Loader2
 } from 'lucide-react';
 import { formatDateTime } from '../../../utils/helperFunction';
-import { deleteProject, runOCR } from '../../../api/apiFunction/projectServices';
+import { deleteProject, runOCR, getOCRResults } from '../../../api/apiFunction/projectServices';
 // import OCRModal from "./OCRModal";
 import { toast } from 'react-toastify';
 import ProjectImageModal from './ProjectImageModal';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import OCRResultsModal from './OCRResultsModal';
 
 const ProjectsList = () => {
     const { projects = [], searchQuery = '', statusFilter = 'all', refreshProjects } = useOutletContext();
@@ -32,6 +33,12 @@ const ProjectsList = () => {
     const [ocrLoading, setOcrLoading] = useState(false);
     const [ocrPdfUrl, setOcrPdfUrl] = useState(null);
     const [ocrStates, setOcrStates] = useState({});
+    const [localStatuses, setLocalStatuses] = useState({});
+    const [pollInterval, setPollInterval] = useState(null);
+    const [selectedProject, setSelectedProject] = useState(null);
+    const [showOCRResults, setShowOCRResults] = useState(false);
+    const [ocrDataByProject, setOcrDataByProject] = useState({});
+    console.log("ocrDataByProject", ocrDataByProject);
 
 
     // Close actions dropdown when clicking outside (portal-aware)
@@ -61,6 +68,8 @@ const ProjectsList = () => {
             window.removeEventListener('scroll', handleScroll, true);
         };
     }, [menu]);
+
+
     const handleDownloadPdf = (pdfUrl) => {
         const link = document.createElement("a");
         link.href = pdfUrl;
@@ -97,6 +106,31 @@ const ProjectsList = () => {
         const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
+
+    // Auto-refresh when there are inprogress projects
+    useEffect(() => {
+        const hasInProgress = projects.some(p => p.status?.toLowerCase() === 'inprogress');
+        
+        if (hasInProgress && !pollInterval) {
+            const interval = setInterval(async () => {
+                if (typeof refreshProjects === 'function') {
+                    await refreshProjects();
+                }
+            }, 5000);
+            setPollInterval(interval);
+        } else if (!hasInProgress && pollInterval) {
+            clearInterval(pollInterval);
+            setPollInterval(null);
+        }
+
+        return () => {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        };
+    }, [projects, pollInterval, refreshProjects]);
+
+
 
     const handleDeleteClick = (projectId) => {
         setDeletingProject(projectId);
@@ -145,6 +179,14 @@ const ProjectsList = () => {
                 color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200",
                 text: "Pending",
             },
+            inprogress: {
+                color: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
+                text: "In Progress",
+            },
+            done: {
+                color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
+                text: "Done",
+            },
             success: {
                 color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
                 text: "Success",
@@ -171,8 +213,31 @@ const ProjectsList = () => {
         );
     };
 
+    const handleViewOCRResults = async (project) => {
+        if (ocrStates[project._id]?.loading) return;
+        
+        setSelectedProject(project);
+        setOcrStates(prev => ({ ...prev, [project._id]: { loading: true } }));
+        
+        try {
+            const userDataString = localStorage.getItem("user");
+            const user = JSON.parse(userDataString || "{}");
+            const ocrData = await getOCRResults(project._id, user?.user_id);
+            setOcrDataByProject(prev => ({ ...prev, [project._id]: ocrData }));
+            setShowOCRResults(true);
+        } catch (error) {
+            console.error('Error fetching OCR data:', error);
+            toast.error('Failed to fetch OCR results');
+        } finally {
+            setOcrStates(prev => ({ ...prev, [project._id]: { loading: false } }));
+        }
+    };
+
     const handleOcrClick = async (projectId) => {
-        // mark as processing
+        if (ocrStates[projectId]?.loading) return;
+        
+        // Immediately update status to inprogress
+        setLocalStatuses(prev => ({ ...prev, [projectId]: 'inprogress' }));
         setOcrStates((prev) => ({
             ...prev,
             [projectId]: { loading: true, pdfUrl: null }
@@ -184,23 +249,32 @@ const ProjectsList = () => {
             if (!user?.user_id) throw new Error("User not found");
 
             const data = await runOCR({ user_id: user.user_id, project_id: projectId });
-
-            if (data?.results?.length > 0) {
-                const firstResult = data.results[0];
-                setOcrStates((prev) => ({
-                    ...prev,
-                    [projectId]: {
-                        loading: false,
-                        pdfUrl: firstResult.result_url || null
-                    }
-                }));
-            } else {
-                toast.error("No OCR results returned");
+            console.log("data", data);
+            toast.success("OCR processing started");
+            
+            // Store OCR data for later use
+            if (data?.results) {
+                setOcrDataByProject(prev => ({ ...prev, [projectId]: data }));
+                localStorage.setItem(`ocr_data_${projectId}`, JSON.stringify(data));
+            }
+            
+            // Initial refresh after 2 seconds
+            setTimeout(async () => {
+                if (typeof refreshProjects === 'function') {
+                    await refreshProjects();
+                }
                 setOcrStates((prev) => ({
                     ...prev,
                     [projectId]: { loading: false, pdfUrl: null }
                 }));
-            }
+                // Clear local status override
+                setLocalStatuses(prev => {
+                    const newStatuses = { ...prev };
+                    delete newStatuses[projectId];
+                    return newStatuses;
+                });
+            }, 2000);
+            
         } catch (err) {
             console.error("OCR error:", err);
             toast.error("OCR processing failed");
@@ -208,6 +282,12 @@ const ProjectsList = () => {
                 ...prev,
                 [projectId]: { loading: false, pdfUrl: null }
             }));
+            // Clear local status on error
+            setLocalStatuses(prev => {
+                const newStatuses = { ...prev };
+                delete newStatuses[projectId];
+                return newStatuses;
+            });
         }
     };
 
@@ -295,10 +375,10 @@ const ProjectsList = () => {
 
                                             {/* Status */}
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                {getStatusBadge(project.status)}
+                                                {getStatusBadge(localStatuses[project._id] || project.status)}
                                             </td>
 
-                                            {/* Created Date */}
+
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm text-fg-50 flex items-center">
                                                     <Calendar size={14} className="mr-2" />
@@ -309,16 +389,16 @@ const ProjectsList = () => {
                                             {/* Actions */}
                                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div className="relative inline-flex items-center gap-2">
-                                                    {/* OCR / Processing / Download */}
+                                                    {/* OCR Actions */}
                                                     {ocrStates[project._id]?.loading ? (
-                                                        <Loader2 size={16} className="animate-spin text-blue-500" title="Processing..." />
-                                                    ) : ocrStates[project._id]?.pdfUrl ? (
+                                                        <Loader2 size={16} className="animate-spin text-blue-500" title="Loading..." />
+                                                    ) : project.status?.toLowerCase() === 'done' ? (
                                                         <button
-                                                            onClick={() => handleDownloadPdf(ocrStates[project._id].pdfUrl)}
+                                                            onClick={() => handleViewOCRResults(project)}
                                                             className="p-1 text-green-600 hover:text-green-800 transition-colors"
-                                                            title="Download OCR PDF"
+                                                            title="View OCR Results"
                                                         >
-                                                            <Download size={16} />
+                                                            <FileText size={16} />
                                                         </button>
                                                     ) : (
                                                         <button
@@ -392,6 +472,20 @@ const ProjectsList = () => {
                 onConfirm={handleDeleteConfirm}
                 itemName="this project"
             />
+            
+            {/* OCR Results Modal - Rendered at document body level */}
+            {showOCRResults && ReactDOM.createPortal(
+                <OCRResultsModal
+                    isOpen={showOCRResults}
+                    onClose={() => {
+                        setShowOCRResults(false);
+                        setSelectedProject(null);
+                    }}
+                    project={selectedProject}
+                    ocrData={selectedProject ? (ocrDataByProject[selectedProject._id] || JSON.parse(localStorage.getItem(`ocr_data_${selectedProject._id}`) || 'null')) : null}
+                />,
+                document.body
+            )}
 
             {/* Portal for Actions Menu */}
             {menu && ReactDOM.createPortal(

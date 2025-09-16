@@ -80,3 +80,15 @@ export const runOCR = async ({ user_id, project_id, file_id }) => {
     throw err;
   }
 };
+
+export const getOCRResults = async (projectId, userId) => {
+  try {
+    const response = await httpGet({
+      url: `${OCR_URL}/${projectId}?user_id=${userId}`
+    });
+    return response?.data;
+  } catch (err) {
+    console.error('Get OCR results error:', err);
+    throw err;
+  }
+};

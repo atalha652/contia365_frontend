@@ -1,8 +1,8 @@
-// frontend/src/components/pages/projects/ProjectImageModal.jsx
+// frontend/src/components/pages/invoices/InvoiceImageModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 
-const ProjectImageModal = ({ imageUrl, onClose, title = 'Preview' }) => {
+const InvoiceImageModal = ({ imageUrl, onClose, title = 'Preview' }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -59,7 +59,7 @@ const ProjectImageModal = ({ imageUrl, onClose, title = 'Preview' }) => {
             )}
             <img
               src={imageUrl}
-              alt="Project Package"
+              alt="Invoice Package"
               className={`max-w-full max-h-[74vh] object-contain ${isLoading ? 'hidden' : 'block'}`}
               onLoad={handleImageLoad}
               onError={handleImageError}
@@ -71,4 +71,4 @@ const ProjectImageModal = ({ imageUrl, onClose, title = 'Preview' }) => {
   );
 };
 
-export default ProjectImageModal;
+export default InvoiceImageModal;

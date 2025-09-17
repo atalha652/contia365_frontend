@@ -1,8 +1,7 @@
 // frontend/src/components/pages/projects/Sidebar.jsx
 import { useState, useEffect, useRef } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { User, ChevronDown, Sun, Moon, LogOut } from "lucide-react";
-import { useTheme } from "../../../context/ThemeContext";
+import { User, ChevronDown, LogOut } from "lucide-react";
 
 // Skeleton loader component
 const SidebarSkeleton = () => (
@@ -31,7 +30,6 @@ const Sidebar = ({
     PanelLeft,
     FolderOpen,
 }) => {
-    const { theme, toggleTheme } = useTheme();
     const [showUserDropdown, setShowUserDropdown] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -101,11 +99,11 @@ const Sidebar = ({
                                     }`
                                 }
                             >
-                                <FolderOpen size={18} className="mr-3" />
-                                <span>Projects</span>
+                                <PanelLeft size={18} className="mr-3" />
+                                <span>Dashboard</span>
                             </NavLink>
                             <NavLink
-                                to="analytics"
+                                to="list"
                                 className={({ isActive }) =>
                                     `flex items-center w-full px-2 py-2 text-sm rounded-md ${isActive
                                         ? "bg-bg-40 text-fg-50"
@@ -113,8 +111,8 @@ const Sidebar = ({
                                     }`
                                 }
                             >
-                                <PanelLeft size={18} className="mr-3" />
-                                <span>Analytics</span>
+                                <FolderOpen size={18} className="mr-3" />
+                                <span>Invoices</span>
                             </NavLink>
                         </div>
                     </div>
@@ -154,16 +152,6 @@ const Sidebar = ({
                                         <div className="py-1">
                                             <button
                                                 onClick={() => {
-                                                    toggleTheme();
-                                                    setShowUserDropdown(false);
-                                                }}
-                                                className="flex items-center gap-3 w-full px-4 py-2 text-sm text-fg-60 hover:bg-bg-50 transition-colors"
-                                            >
-                                                {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-                                                <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
                                                     handleLogout();
                                                     setShowUserDropdown(false);
                                                 }}
@@ -184,4 +172,4 @@ const Sidebar = ({
     );
 };
 
-export default Sidebar; 
+export default Sidebar;

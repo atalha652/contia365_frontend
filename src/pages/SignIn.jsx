@@ -60,7 +60,7 @@ const SignIn = () => {
         localStorage.setItem('user', JSON.stringify(response.data));
 
         toast.success("Login successful! Redirecting...");
-        navigate("/projects");
+        navigate("/invoices");
       } else {
         // Extract the exact error message from the API response
         const errorMessage = response.data?.detail || response.data?.message || "Login failed. Please try again.";

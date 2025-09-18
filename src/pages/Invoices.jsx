@@ -4,13 +4,10 @@ import { updatePageTitle } from "../utils/titleUtils";
 import { toast } from "react-toastify";
 import { Outlet, useLocation } from "react-router-dom";
 import {
-    PanelLeft,
     PanelLeftDashed,
-    FolderOpen,
-    X,
-    Plus,
-    Sun,
+    PanelLeft,
     Moon,
+    Sun
 } from "lucide-react";
 import CreateInvoiceModal from "../components/pages/invoices/CreateInvoiceModal";
 import Sidebar from "../components/pages/invoices/Sidebar";
@@ -74,7 +71,7 @@ const ContentSkeleton = () => (
 const Invoices = () => {
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
-    const [sidebarExpanded, setSidebarExpanded] = useState(false);
+    const [sidebarExpanded, setSidebarExpanded] = useState(true);
     const [projects, setProjects] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
@@ -164,8 +161,6 @@ const Invoices = () => {
             <Sidebar
                 sidebarExpanded={sidebarExpanded}
                 isLoading={isLoading}
-                PanelLeft={PanelLeft}
-                FolderOpen={FolderOpen}
             />
 
             {/* Main Content */}

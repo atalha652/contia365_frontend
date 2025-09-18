@@ -5,5 +5,9 @@ export const AUTH_URL = `${SERVER_PATH}/api/auth`;
 
 // Project End Points
 export const PROJECT_URL = `${SERVER_PATH}/api/project`;
+
 // OCR End Point
 export const OCR_URL = `${SERVER_PATH}/api/api/ocr`;
+
+// Report End Points
+export const REPORT_URL = `${SERVER_PATH}/api/report`;

@@ -1,4 +1,4 @@
-// frontend/src/components/pages/projects/CreateProjectModal.jsx
+// frontend/src/components/pages/invoices/CreateInvoiceModal.jsx
 import { useState } from "react";
 import { X, Upload, FileImage, Trash2 } from "lucide-react";
 
@@ -12,7 +12,7 @@ const DEFAULT_COLORS = [
     "#1d1d1f",
 ];
 
-const CreateProjectModal = ({ onSubmit, onClose }) => {
+const CreateInvoiceModal = ({ onSubmit, onClose }) => {
     const [formData, setFormData] = useState({
         title: "",
         description: "",
@@ -26,12 +26,12 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
         e.preventDefault();
 
         if (!formData.title.trim()) {
-            alert("Project title is required");
+            alert("Invoice title is required");
             return;
         }
 
         if (!formData.description.trim()) {
-            alert("Project description is required");
+            alert("Invoice description is required");
             return;
         }
 
@@ -121,10 +121,10 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Project Title */}
+            {/* Invoice Title */}
             <div>
                 <label htmlFor="title" className="block text-sm font-medium text-fg-50 mb-2">
-                    Project Title *
+                    Invoice Title *
                 </label>
                 <input
                     type="text"
@@ -132,13 +132,13 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                     name="title"
                     value={formData.title}
                     onChange={handleChange}
-                    placeholder="e.g., Monthly Expenses, Client Projects"
+                    placeholder="e.g., Project Invoice, Shopping Invoice"
                     className="w-full px-3 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 placeholder-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02 focus:border-transparent"
                     required
                 />
             </div>
 
-            {/* Project Description */}
+            {/* Invoice Description */}
             <div>
                 <label htmlFor="description" className="block text-sm font-medium text-fg-50 mb-2">
                     Description *
@@ -148,51 +148,53 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
-                    placeholder="Describe what this project is for..."
+                    placeholder="Describe what this invoice is for..."
                     rows={3}
                     className="w-full px-3 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 placeholder-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02 focus:border-transparent resize-none"
                     required
                 />
             </div>
 
-            {/* Project Color */}
+            {/* Invoice Color */}
             <div>
                 <label htmlFor="color" className="block text-sm font-medium text-fg-50 mb-2">
-                    Project Color
+                    Invoice Color
                 </label>
-                <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
                     {/* Predefined Colors */}
-                    <div className="flex items-center gap-2">
-                        <div className="flex gap-2">
-                            {DEFAULT_COLORS.map((color) => (
-                                <button
-                                    key={color}
-                                    type="button"
-                                    onClick={() => handleColorSelect(color)}
-                                    className={`w-8 h-8 rounded-full border-2 transition-all ${formData.color === color
-                                        ? 'border-fg-50 scale-110'
-                                        : 'border-bd-50 hover:border-fg-40'
-                                        }`}
-                                    style={{ backgroundColor: color }}
-                                    title={color}
-                                />
-                            ))}
-                        </div>
+                    <div className="flex gap-2">
+                        {DEFAULT_COLORS.map((color) => (
+                            <button
+                                key={color}
+                                type="button"
+                                onClick={() => handleColorSelect(color)}
+                                className={`w-8 h-8 rounded-full border-2 transition-all ${formData.color === color
+                                    ? 'border-fg-50 scale-110'
+                                    : 'border-bd-50 hover:border-fg-40'
+                                    }`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                            />
+                        ))}
                     </div>
 
-                    {/* Custom Color Picker */}
-                    <div className="flex items-center gap-3">
+                    {/* Custom Color Button */}
+                    <div className="flex items-center gap-2">
                         <input
                             type="color"
                             id="color"
                             name="color"
                             value={formData.color}
                             onChange={handleChange}
-                            className="w-12 h-10 border border-bd-50 rounded-md bg-bg-50 cursor-pointer"
+                            className="w-6 h-6 border border-bd-50 rounded-full bg-bg-50 cursor-pointer"
                         />
-                        <span className="text-sm text-fg-60">
-                            Or choose a custom color
-                        </span>
+                        <button
+                            type="button"
+                            onClick={() => document.getElementById('color').click()}
+                            className="flex items-center gap-1 h-[32px] px-3 py-2 text-xs bg-bg-40 text-fg-60 hover:bg-bg-30 hover:text-fg-50 rounded-md transition-colors"
+                        >
+                            <span>Custom</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -204,26 +206,28 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                 </label>
                 <div className="space-y-3">
                     {/* Upload Button */}
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="file"
-                            id="file"
-                            name="file"
-                            multiple
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            className="hidden"
-                        />
-                        <label
-                            htmlFor="file"
-                            className="flex items-center gap-2 px-4 py-2 border border-bd-50 rounded-md bg-bg-50 text-fg-50 cursor-pointer hover:bg-bg-40 transition-colors"
-                        >
-                            <Upload size={16} />
-                            Add Images
-                        </label>
-                        <span className="text-sm text-fg-60">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="file"
+                                id="file"
+                                name="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
+                            <label
+                                htmlFor="file"
+                                className="flex items-center gap-2 px-4 py-2 rounded-md bg-bg-50 text-fg-50 cursor-pointer hover:bg-bg-40 transition-colors whitespace-nowrap"
+                            >
+                                <Upload size={16} />
+                                Add Images
+                            </label>
+                        </div>
+                        <p className="text-sm text-fg-60">
                             Select multiple image files (JPG, PNG, GIF, etc.)
-                        </span>
+                        </p>
                     </div>
 
                     {/* Image Previews */}
@@ -304,11 +308,11 @@ const CreateProjectModal = ({ onSubmit, onClose }) => {
                     }
                     className="px-4 py-2 bg-ac-02 hover:bg-ac-01 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isSubmitting ? "Creating..." : `Create Project (${formData.files.length} images)`}
+                    {isSubmitting ? "Creating..." : `Create Invoice (${formData.files.length} images)`}
                 </button>
             </div>
         </form>
     );
 };
 
-export default CreateProjectModal;
+export default CreateInvoiceModal;

@@ -1,4 +1,4 @@
-// frontend/src/pages/Projects.jsx
+// frontend/src/pages/Invoices.jsx
 import { useState, useEffect, useCallback } from "react";
 import { updatePageTitle } from "../utils/titleUtils";
 import { toast } from "react-toastify";
@@ -9,11 +9,13 @@ import {
     FolderOpen,
     X,
     Plus,
+    Sun,
+    Moon,
 } from "lucide-react";
-import CreateProjectModal from "../components/pages/projects/CreateProjectModal";
-import Sidebar from "../components/pages/projects/Sidebar";
-import ProjectsHeader from "../components/pages/projects/ProjectsHeader";
+import CreateInvoiceModal from "../components/pages/invoices/CreateInvoiceModal";
+import Sidebar from "../components/pages/invoices/Sidebar";
 import { createProject, getMyProjects } from "../api/apiFunction/projectServices";
+import { useTheme } from "../context/ThemeContext";
 
 
 const HeaderSkeleton = () => (
@@ -69,16 +71,15 @@ const ContentSkeleton = () => (
     </div>
 );
 
-const Projects = () => {
-    const [sidebarExpanded, setSidebarExpanded] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
+const Invoices = () => {
+    const location = useLocation();
+    const { theme, toggleTheme } = useTheme();
+    const [sidebarExpanded, setSidebarExpanded] = useState(false);
     const [projects, setProjects] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
 
     const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const location = useLocation();
 
     const fetchProjects = useCallback(async () => {
         try {
@@ -104,7 +105,7 @@ const Projects = () => {
 
     useEffect(() => {
         fetchProjects();
-        updatePageTitle('Projects');
+        updatePageTitle('Invoices');
     }, [fetchProjects]);
 
     const toggleSidebar = () => {
@@ -117,7 +118,7 @@ const Projects = () => {
             const response = await createProject(projectData);
 
             if (response.status === 201 || response.status === 200) {
-                toast.success("Project created successfully");
+                toast.success("Invoice created successfully");
                 setShowCreateProjectModal(false);
                 // Refresh projects list
                 await fetchProjects();
@@ -129,6 +130,29 @@ const Projects = () => {
             toast.error(error.message || "Failed to create project");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleDeleteProject = async (projectId) => {
+        try {
+            // Refresh projects list after deletion
+            console.log("Delete project:", projectId);
+            await fetchProjects(); // Refresh the projects list
+            toast.success("Project deleted successfully");
+        } catch (error) {
+            console.error("Error deleting project:", error);
+            toast.error("Failed to delete project");
+        }
+    };
+
+    const handleEditProject = async (projectData) => {
+        try {
+            // TODO: Implement edit functionality when API is available
+            console.log("Edit project:", projectData);
+            toast.info("Edit functionality will be implemented soon");
+        } catch (error) {
+            console.error("Error editing project:", error);
+            toast.error("Failed to edit project");
         }
     };
 
@@ -163,32 +187,22 @@ const Projects = () => {
                                 )}
                             </button>
                             <h1 className="text-lg font-semibold">
-                                {location.pathname.split("/").pop() === "projects"
-                                    ? "Manage Projects"
-                                    : location.pathname.split("/").pop() === "analytics"
-                                        ? "Analytics"
-                                        : "Projects"}
+                                {location.pathname.split("/").pop() === "list"
+                                    ? "Invoices"
+                                    : location.pathname.split("/").pop() === "invoices" || location.pathname === "/invoices"
+                                        ? "Dashboard"
+                                        : "Dashboard"}
                             </h1>
                         </div>
                         <div className="flex items-center gap-2">
-                            {/* Search and Filter Controls */}
-                            <ProjectsHeader
-                                searchQuery={searchQuery}
-                                setSearchQuery={setSearchQuery}
-                                statusFilter={statusFilter}
-                                setStatusFilter={setStatusFilter}
-                            />
-
-                            {/* Create Project Button */}
+                            {/* Theme Toggle */}
                             <button
-                                onClick={() => setShowCreateProjectModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-ac-02 hover:bg-ac-01 text-white rounded-md text-sm font-medium transition-colors"
+                                onClick={toggleTheme}
+                                className="p-2 text-fg-60 hover:text-fg-50 transition-colors rounded-md hover:bg-bg-50"
+                                title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
                             >
-                                <Plus size={16} />
-                                New Project
+                                {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
                             </button>
-
-
                         </div>
                     </div>
                 )}
@@ -199,16 +213,13 @@ const Projects = () => {
                         {isLoading ? (
                             <ContentSkeleton />
                         ) : (
-                            <Outlet
-                                key={location.pathname}
-                                context={{
-                                    projects,
-                                    user,
-                                    searchQuery,
-                                    statusFilter,
-                                    refreshProjects: fetchProjects,
-                                }}
-                            />
+                            <Outlet context={{
+                                projects,
+                                onDeleteProject: handleDeleteProject,
+                                onEditProject: handleEditProject,
+                                onCreateProject: () => setShowCreateProjectModal(true),
+                                onRefreshProjects: fetchProjects
+                            }} />
                         )}
                     </div>
                 </div>
@@ -217,9 +228,9 @@ const Projects = () => {
             {/* Create Project Modal */}
             {showCreateProjectModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-bg-60 rounded-lg shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                    <div className="bg-bg-60 rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold">Create New Project</h3>
+                            <h3 className="text-lg font-semibold">Create New Invoice</h3>
                             <button
                                 onClick={() => {
                                     setShowCreateProjectModal(false);
@@ -231,7 +242,7 @@ const Projects = () => {
                         </div>
 
                         <div className="mt-4">
-                            <CreateProjectModal
+                            <CreateInvoiceModal
                                 onSubmit={handleCreateProject}
                                 onClose={() => setShowCreateProjectModal(false)}
                             />
@@ -243,4 +254,4 @@ const Projects = () => {
     );
 };
 
-export default Projects; 
+export default Invoices;

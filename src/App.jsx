@@ -11,9 +11,9 @@ import SignUp from "./pages/SignUp";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Projects from "./pages/Projects";
-import ProjectsList from "./components/pages/projects/ProjectsList";
-import Analytics from "./components/pages/projects/Analytics";
+import Invoices from "./pages/Invoices";
+import InvoicesList from "./components/pages/invoices/InvoicesList";
+import Dashboard from "./components/pages/invoices/Dashboard";
 
 function App() {
   return (
@@ -35,9 +35,9 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/sign-in" element={<SignIn />} />
             <Route path="/sign-up" element={<SignUp />} />
-            <Route path="/projects" element={<Projects />}>
-              <Route index element={<ProjectsList />} />
-              <Route path="analytics" element={<Analytics />} />
+            <Route path="/invoices" element={<Invoices />}>
+              <Route index element={<Dashboard />} />
+              <Route path="list" element={<InvoicesList />} />
             </Route>
           </Routes>
         </div>

@@ -1,7 +1,6 @@
-// frontend/src/components/pages/projects/Sidebar.jsx
 import { useState, useEffect, useRef } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { User, ChevronDown, LogOut } from "lucide-react";
+import { User, ChevronDown, LogOut, PanelLeft, FolderOpen } from "lucide-react";
 
 // Skeleton loader component
 const SidebarSkeleton = () => (
@@ -27,8 +26,6 @@ const SidebarSkeleton = () => (
 const Sidebar = ({
     sidebarExpanded,
     isLoading,
-    PanelLeft,
-    FolderOpen,
 }) => {
     const [showUserDropdown, setShowUserDropdown] = useState(false);
     const dropdownRef = useRef(null);

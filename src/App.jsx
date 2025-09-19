@@ -14,6 +14,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import Invoices from "./pages/Invoices";
 import InvoicesList from "./components/pages/invoices/InvoicesList";
 import Dashboard from "./components/pages/invoices/Dashboard";
+import InvoicesV2 from "./pages/InvoicesV2";
+import InvoicesV3 from "./pages/InvoicesV3";
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="list" element={<InvoicesList />} />
             </Route>
+            <Route path="/invoices/v2" element={<InvoicesV2 />} />
+            <Route path="/invoices/v3" element={<InvoicesV3 />} />
           </Routes>
         </div>
       </Router>

@@ -198,14 +198,14 @@ const DailyInvoices = ({ selectedDate }) => {
                                             <span>{invoice.time}</span>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="flex items-center gap-4">
                                         <div className="text-right">
                                             <div className="text-lg font-semibold text-fg-50">
                                                 ${invoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                             </div>
                                         </div>
-                                        
+
                                         {/* Action buttons */}
                                         <div className="flex items-center gap-1">
                                             <button className="p-2 text-fg-60 hover:text-fg-50 hover:bg-bg-40 rounded-lg transition-colors">
@@ -240,7 +240,7 @@ const DailyInvoices = ({ selectedDate }) => {
                             <div className="text-xs text-fg-60">New invoice for today</div>
                         </div>
                     </button>
-                    
+
                     <button className="flex items-center gap-3 p-4 bg-bg-50 hover:bg-bg-40 rounded-lg transition-colors text-left">
                         <Calendar size={20} className="text-ac-02" />
                         <div>
@@ -248,7 +248,7 @@ const DailyInvoices = ({ selectedDate }) => {
                             <div className="text-xs text-fg-60">Go to monthly view</div>
                         </div>
                     </button>
-                    
+
                     <button className="flex items-center gap-3 p-4 bg-bg-50 hover:bg-bg-40 rounded-lg transition-colors text-left">
                         <Download size={20} className="text-ac-02" />
                         <div>
@@ -256,7 +256,7 @@ const DailyInvoices = ({ selectedDate }) => {
                             <div className="text-xs text-fg-60">Download today's report</div>
                         </div>
                     </button>
-                    
+
                     <button className="flex items-center gap-3 p-4 bg-bg-50 hover:bg-bg-40 rounded-lg transition-colors text-left">
                         <TrendingUp size={20} className="text-ac-02" />
                         <div>

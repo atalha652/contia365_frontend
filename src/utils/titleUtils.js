@@ -20,5 +20,31 @@ export const getPageTitle = (pathname, additionalData = {}) => {
         return 'Sign Up';
     }
 
+    // App pages
+    if (path.startsWith('/app')) {
+        if (path.includes('/dashboard')) {
+            return 'App Dashboard';
+        }
+        if (path.includes('/invoices')) {
+            return 'Invoices';
+        }
+        if (path.includes('/bank-reconciliation')) {
+            return 'Bank Reconciliation';
+        }
+        if (path.includes('/ledger')) {
+            return 'Ledger';
+        }
+        if (path.includes('/expences')) {
+            return 'Expenses';
+        }
+        if (path.includes('/payroll')) {
+            return 'Payroll';
+        }
+        return 'App';
+    }
+
+
     return 'CONTIA365';
-}; 
+
+
+};

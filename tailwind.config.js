@@ -19,6 +19,7 @@ export default {
           40: "var(--bg-40)",
           50: "var(--bg-50)",
           60: "var(--bg-60)",
+          70: "var(--bg-70)",
         },
         bd: {
           50: "var(--bd-50)",

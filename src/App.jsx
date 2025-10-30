@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate
 } from "react-router-dom";
 import "./App.css";
 import Home from "./pages/Home";
@@ -16,6 +17,13 @@ import InvoicesList from "./components/pages/invoices/InvoicesList";
 import Dashboard from "./components/pages/invoices/Dashboard";
 import InvoicesV2 from "./pages/InvoicesV2";
 import InvoicesV3 from "./pages/InvoicesV3";
+
+import AppPage from "./pages/AppPage";
+import AppDashboard from "./components/pages/app/Dashboard";
+import Vouchers from "./components/pages/app/vouchers/Vouchers";
+import Requests from "./components/pages/app/Requests";
+import Ledger from "./components/pages/app/Ledger";
+// Removed Bank Reconciliation, Expenses, Payroll per request
 
 function App() {
   return (
@@ -43,7 +51,18 @@ function App() {
             </Route>
             <Route path="/invoices/v2" element={<InvoicesV2 />} />
             <Route path="/invoices/v3" element={<InvoicesV3 />} />
+
+            {/* App routes */}
+            <Route path="/app" element={<AppPage />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AppDashboard />} />
+              <Route path="vouchers" element={<Vouchers />} />
+              <Route path="requests" element={<Requests />} />
+              <Route path="ledger" element={<Ledger />} />
+              {/* Removed routes: bank-reconciliation, expences, payroll */}
+            </Route>
           </Routes>
+
         </div>
       </Router>
     </ThemeProvider>

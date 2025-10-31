@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input } from "../../../ui";
+import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input, Select } from "../../../ui";
+import { X } from "lucide-react";
 import { uploadVouchers } from "../../../../api/apiFunction/voucherServices";
 import { toast } from "react-toastify";
 
 const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
   const [files, setFiles] = useState([]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -15,6 +19,9 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
 
   const reset = () => {
     setFiles([]);
+    setTitle("");
+    setDescription("");
+    setCategory("");
     setError("");
   };
 
@@ -37,7 +44,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
         return;
       }
 
-      const data = await uploadVouchers({ user_id, files });
+      const data = await uploadVouchers({ user_id, files, title, description, category });
       toast.success("Voucher uploaded successfully");
       onUploaded && onUploaded(data);
       handleClose();
@@ -56,13 +63,41 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
       <ModalHeader
         title="Upload Voucher"
         action={
-          <Button variant="ghost" size="sm" onClick={handleClose} disabled={isSubmitting}>
-            Close
+          <Button variant="ghost" size="icon" onClick={handleClose} disabled={isSubmitting}>
+            <X className="w-4 h-4" />
           </Button>
         }
       />
       <ModalBody>
         <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-fg-60 mb-1">Title</label>
+              <Input
+                type="text"
+                placeholder="e.g., Hotel Invoice"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-fg-60 mb-1">Category</label>
+              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                {["Bill", "Invoice", "Receipt", "Expense", "Other"].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-fg-60 mb-1">Description</label>
+            <Input
+              type="text"
+              placeholder="Add a short description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
           <div>
             <label className="block text-sm text-fg-60 mb-1">Select files</label>
             <Input
@@ -88,7 +123,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
       </ModalBody>
       <ModalFooter>
         <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
-        <Button variant="primary" onClick={handleUpload} disabled={isSubmitting || files.length === 0}>
+        <Button variant="primary" onClick={handleUpload} disabled={isSubmitting || files.length === 0 || !title || !category}>
           {isSubmitting ? "Uploading..." : "Upload"}
         </Button>
       </ModalFooter>

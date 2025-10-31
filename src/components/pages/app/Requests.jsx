@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   Button,
@@ -9,45 +9,111 @@ import {
   TableHead,
   TableCell,
   Badge,
-  Avatar,
   Input,
   Select,
   Modal,
   ModalHeader,
   ModalBody,
   ModalFooter,
+  ImagePreviewModal,
 } from "../../ui";
-import { Check, Filter, MoreHorizontal, Search, X } from "lucide-react";
+import { Check, Filter, MoreHorizontal, Search, X, Loader2 } from "lucide-react";
+import { getAwaitingApprovalVouchers, approveVouchers, rejectVouchers } from "../../../api/apiFunction/voucherServices";
 
 const Requests = () => {
-  const {
-    invoices = [],
-    voucherRequests = [],
-    approveVoucherRequest,
-    setVoucherRequests,
-  } = useOutletContext() || {};
+  const { approveVoucherRequest } = useOutletContext() || {};
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [vouchers, setVouchers] = useState([]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmIds, setConfirmIds] = useState([]);
+  const [approveNote, setApproveNote] = useState("");
+  const [declineIds, setDeclineIds] = useState([]);
+  const [declineNote, setDeclineNote] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const requested = useMemo(
-    () => invoices.filter((inv) => voucherRequests.includes(inv.id)),
-    [invoices, voucherRequests]
-  );
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+  const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
-  const filtered = requested.filter((inv) => {
+  const fetchRequests = async () => {
+    if (!userId) return;
+    try {
+      setLoading(true);
+      setError("");
+      const { vouchers: items } = await getAwaitingApprovalVouchers({ user_id: userId });
+      setVouchers(Array.isArray(items) ? items : []);
+    } catch (err) {
+      const message = err?.response?.data?.detail || err.message || "Failed to fetch requests";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const normalized = Array.isArray(vouchers)
+    ? vouchers.map((v) => ({
+        id: v._id || v.id,
+        status: v.status || "awaiting_approval",
+        title: v.title || "",
+        description: v.description || "",
+        category: v.category || "",
+        created_at: v.created_at || v.date || "",
+        approval_requested_at: v.approval_requested_at || "",
+        approver_id: v.approver_id || "",
+        rejection_count: typeof v.rejection_count === "number" ? v.rejection_count : 0,
+        files: Array.isArray(v.files) ? v.files : [],
+        files_count: typeof v.files_count === "number" ? v.files_count : (Array.isArray(v.files) ? v.files.length : 0),
+      }))
+    : [];
+
+  const filtered = normalized.filter((v) => {
     const search = searchQuery.toLowerCase();
-    const matchesSearch = `${inv.id} ${inv.customer} ${inv.description}`.toLowerCase().includes(search);
+    const matchesSearch = `${v.id} ${v.title} ${v.category}`.toLowerCase().includes(search);
     const matchesStatus =
-      statusFilter === "All Status"
-        ? true
-        : statusFilter === "Paid"
-        ? inv.status === "paid"
-        : inv.status === "pending";
+      statusFilter === "All Status" ? true : v.status?.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
+
+  const formatDateTime = (value) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    const mon = new Intl.DateTimeFormat("en", { month: "short" }).format(d);
+    const day = String(d.getDate()).padStart(2, "0");
+    const year = d.getFullYear();
+    const time = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+    return `${mon}, ${day}, ${year} ${time}`;
+  };
+
+  const formatStatusLabel = (value) => {
+    if (!value) return "";
+    return String(value).replace(/_/g, " ").toUpperCase();
+  };
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewFiles, setPreviewFiles] = useState([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+
+  const openPreview = (files, index = 0) => {
+    setPreviewFiles(Array.isArray(files) ? files : []);
+    setPreviewIndex(index || 0);
+    setPreviewOpen(true);
+  };
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -62,23 +128,60 @@ const Requests = () => {
     }
   };
 
-  const confirmApprove = (ids) => setConfirmIds(ids);
-  const closeConfirm = () => setConfirmIds([]);
-  const doApprove = () => {
-    confirmIds.forEach((id) => approveVoucherRequest?.(id));
-    setSelectedIds((prev) => prev.filter((id) => !confirmIds.includes(id)));
+  const confirmApprove = (ids) => {
+    setApproveNote("");
+    setConfirmIds(ids);
+  };
+  const closeConfirm = () => {
+    setApproveNote("");
     setConfirmIds([]);
+  };
+  const doApprove = async () => {
+    if (!userId || confirmIds.length === 0) return;
+    try {
+      setActionLoading(true);
+      await approveVouchers({ voucher_ids: confirmIds, approver_id: userId, notes: approveNote || undefined });
+      setSelectedIds((prev) => prev.filter((id) => !confirmIds.includes(id)));
+      setConfirmIds([]);
+      setApproveNote("");
+      await fetchRequests();
+    } catch (err) {
+      console.error("Approve action failed", err);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const declineSelected = () => {
     if (selectedIds.length === 0) return;
-    setVoucherRequests?.((prev) => prev.filter((id) => !selectedIds.includes(id)));
-    setSelectedIds([]);
+    setDeclineNote("");
+    setDeclineIds(selectedIds);
   };
 
   const declineOne = (id) => {
-    setVoucherRequests?.((prev) => prev.filter((x) => x !== id));
-    setSelectedIds((prev) => prev.filter((x) => x !== id));
+    setDeclineNote("");
+    setDeclineIds([id]);
+  };
+
+  const closeDecline = () => {
+    setDeclineNote("");
+    setDeclineIds([]);
+  };
+
+  const doDecline = async () => {
+    if (!userId || declineIds.length === 0 || !declineNote) return;
+    try {
+      setActionLoading(true);
+      await rejectVouchers({ voucher_ids: declineIds, rejected_by: userId, rejection_reason: declineNote });
+      setSelectedIds((prev) => prev.filter((id) => !declineIds.includes(id)));
+      setDeclineIds([]);
+      setDeclineNote("");
+      await fetchRequests();
+    } catch (err) {
+      console.error("Reject action failed", err);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -109,13 +212,15 @@ const Requests = () => {
             </div>
 
             {/* Status Filter */}
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {["All Status", "Paid", "Pending"].map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
+            <div className="w-44">
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                {["All Status", "awaiting_approval", "approved", "rejected"].map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
             {/* More Filters */}
             <Button variant="secondary" size="icon">
@@ -149,7 +254,7 @@ const Requests = () => {
           </div>
         </div>
 
-        {/* Requests Table (match Vouchers layout: no extra wrapper) */}
+        {/* Requests Table (match Vouchers layout) */}
         <Table>
           <TableHeader>
             <TableRow isHeader={true}>
@@ -163,57 +268,89 @@ const Requests = () => {
                 />
               </TableHead>
               <TableHead className="whitespace-nowrap">Voucher</TableHead>
-              <TableHead className="whitespace-nowrap">Customer</TableHead>
-              <TableHead className="whitespace-nowrap">Description</TableHead>
-              <TableHead className="whitespace-nowrap">Amount</TableHead>
-              <TableHead className="whitespace-nowrap">Date</TableHead>
+              <TableHead className="whitespace-nowrap">Title</TableHead>
+              <TableHead className="whitespace-nowrap">Category</TableHead>
+              <TableHead className="whitespace-nowrap">Files</TableHead>
+              <TableHead className="whitespace-nowrap">Rejections</TableHead>
               <TableHead className="whitespace-nowrap">Status</TableHead>
+              <TableHead className="whitespace-nowrap">Created</TableHead>
+              <TableHead className="w-[160px] whitespace-nowrap">Preview</TableHead>
               <TableHead className="w-12" isLast={true}></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((invoice, index) => (
-              <TableRow key={invoice.id} isLast={index === filtered.length - 1}>
+            {loading && (
+              <TableRow>
+                <TableCell className="text-center" colSpan={10}>
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map((voucher, index) => (
+              <TableRow key={voucher.id} isLast={index === filtered.length - 1}>
                 <TableCell>
                   <input
                     type="checkbox"
                     className="form-checkbox h-4 w-4 rounded border-bd-50"
-                    checked={selectedIds.includes(invoice.id)}
-                    onChange={() => toggleSelect(invoice.id)}
-                    aria-label={`Select voucher #${invoice.id}`}
+                    checked={selectedIds.includes(voucher.id)}
+                    onChange={() => toggleSelect(voucher.id)}
+                    aria-label={`Select voucher #${voucher.id}`}
                   />
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">#{invoice.id}</span>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">#{voucher.id}</span>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center space-x-3">
-                    <Avatar>{String(invoice.customer || "").charAt(0)}</Avatar>
-                    <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{invoice.customer}</span>
-                  </div>
+                  <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{voucher.title || "-"}</span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">{invoice.description}</span>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.category || "-"}</span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm font-medium text-fg-40 whitespace-nowrap">${invoice.amount?.toLocaleString?.() ?? invoice.amount}</span>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.files_count ?? 0}</span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">{invoice.date}</span>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.rejection_count ?? 0}</span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={invoice.status === "paid" ? "success" : "warning"}>
-                    {invoice.status === "paid" ? "PAID" : "PENDING"}
+                  <Badge variant={voucher.status === "approved" ? "success" : voucher.status === "rejected" ? "error" : "info"}>
+                    {formatStatusLabel(voucher.status || "awaiting_approval")}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {invoice.status !== "paid" && (
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{formatDateTime(voucher.created_at)}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    {(voucher.files || []).slice(0, 3).map((f, i) => (
+                      <button
+                        key={i}
+                        onClick={() => openPreview(voucher.files, i)}
+                        className="border border-bd-50 rounded-md p-0.5"
+                        title={f?.name || `File ${i + 1}`}
+                      >
+                        <img
+                          src={f?.file_url || f?.url || ""}
+                          alt={f?.name || `File ${i + 1}`}
+                          className="w-10 h-10 rounded-md object-cover"
+                        />
+                      </button>
+                    ))}
+                    {Array.isArray(voucher.files) && voucher.files.length > 5 && (
+                      <span className="text-xs text-fg-60 whitespace-nowrap">and more...</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {voucher.status !== "approved" && (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="secondary"
                         size="sm"
                         className="space-x-1"
-                        onClick={() => declineOne(invoice.id)}
+                        onClick={() => declineOne(voucher.id)}
                       >
                         <X className="w-4 h-4" />
                         <span>Decline</span>
@@ -222,7 +359,7 @@ const Requests = () => {
                         variant="primary"
                         size="sm"
                         className="space-x-1"
-                        onClick={() => confirmApprove([invoice.id])}
+                        onClick={() => confirmApprove([voucher.id])}
                       >
                         <Check className="w-4 h-4" />
                         <span>Approve</span>
@@ -235,7 +372,7 @@ const Requests = () => {
 
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell className="text-center" colSpan={8}>
+                <TableCell className="text-center" colSpan={10}>
                   <span className="text-sm text-fg-60">No voucher requests yet.</span>
                 </TableCell>
               </TableRow>
@@ -243,10 +380,10 @@ const Requests = () => {
           </TableBody>
         </Table>
 
-        {/* Confirm Modal */}
+        {/* Approve Modal */}
         <Modal open={confirmIds.length > 0} onClose={closeConfirm}>
           <ModalHeader
-            title={`Confirm Approve ${confirmIds.length} voucher${confirmIds.length > 1 ? 's' : ''}`}
+            title={`Approve ${confirmIds.length} voucher${confirmIds.length > 1 ? 's' : ''}`}
             action={
               <Button variant="ghost" size="icon" onClick={closeConfirm}>
                 <X className="w-4 h-4" />
@@ -254,15 +391,75 @@ const Requests = () => {
             }
           />
           <ModalBody>
-            <p className="text-sm text-fg-60">
-              This will mark the selected voucher(s) as PAID and create corresponding bank and journal entries.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-fg-60">
+                Approving will set status to <span className="font-medium">APPROVED</span>.
+              </p>
+              <div>
+                <label className="text-sm text-fg-60">Optional Note</label>
+                <Input
+                  type="text"
+                  placeholder="Add an approval note (optional)"
+                  value={approveNote}
+                  onChange={(e) => setApproveNote(e.target.value)}
+                />
+              </div>
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button variant="secondary" onClick={closeConfirm}>Cancel</Button>
-            <Button variant="primary" onClick={doApprove}>Confirm</Button>
+            <Button variant="primary" onClick={doApprove} disabled={actionLoading}>
+              {actionLoading ? (
+                <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Approving…</span></span>
+              ) : (
+                <>Confirm</>
+              )}
+            </Button>
           </ModalFooter>
         </Modal>
+
+        {/* Decline Modal */}
+        <Modal open={declineIds.length > 0} onClose={closeDecline}>
+          <ModalHeader
+            title={`Decline ${declineIds.length} voucher${declineIds.length > 1 ? 's' : ''}`}
+            action={
+              <Button variant="ghost" size="icon" onClick={closeDecline}>
+                <X className="w-4 h-4" />
+              </Button>
+            }
+          />
+          <ModalBody>
+            <div className="space-y-3">
+              <p className="text-sm text-fg-60">Provide a reason to reject the selected voucher(s).</p>
+              <div>
+                <label className="text-sm text-fg-60">Rejection Note</label>
+                <Input
+                  type="text"
+                  placeholder="Enter rejection reason"
+                  value={declineNote}
+                  onChange={(e) => setDeclineNote(e.target.value)}
+                />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={closeDecline}>Cancel</Button>
+            <Button variant="primary" onClick={doDecline} disabled={actionLoading || !declineNote}>
+              {actionLoading ? (
+                <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /><span>Declining…</span></span>
+              ) : (
+                <>Confirm</>
+              )}
+            </Button>
+          </ModalFooter>
+        </Modal>
+
+        <ImagePreviewModal
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          files={previewFiles}
+          initialIndex={previewIndex}
+        />
       </div>
     </div>
   );

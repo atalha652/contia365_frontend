@@ -12,3 +12,4 @@ export { Avatar } from "./Avatar";
 export { Input } from "./Input";
 export { Select } from "./Select";
 export { Modal, ModalHeader, ModalBody, ModalFooter } from "./Modal";
+export { default as ImagePreviewModal } from "./ImagePreviewModal";

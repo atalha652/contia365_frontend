@@ -5,32 +5,40 @@ import { uploadVouchers } from "../../../../api/apiFunction/voucherServices";
 import { toast } from "react-toastify";
 
 const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
+  // Keep local state for form fields and submission
   const [files, setFiles] = useState([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  // New field: transaction type (credit/debit)
+  const [transactionType, setTransactionType] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Update local files list when user selects files
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);
     setFiles(selected);
   };
 
+  // Reset the modal's form state
   const reset = () => {
     setFiles([]);
     setTitle("");
     setDescription("");
     setCategory("");
+    setTransactionType("");
     setError("");
   };
 
+  // Close the modal safely (disabled during submit)
   const handleClose = () => {
     if (isSubmitting) return;
     reset();
     onClose && onClose();
   };
 
+  // Submit the form to upload vouchers with optional transaction_type
   const handleUpload = async () => {
     try {
       setIsSubmitting(true);
@@ -43,8 +51,14 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
         setIsSubmitting(false);
         return;
       }
-
-      const data = await uploadVouchers({ user_id, files, title, description, category });
+      const data = await uploadVouchers({
+        user_id,
+        files,
+        title,
+        description,
+        category,
+        transaction_type: transactionType || undefined,
+      });
       toast.success("Voucher uploaded successfully");
       onUploaded && onUploaded(data);
       handleClose();
@@ -70,17 +84,21 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
       />
       <ModalBody>
         <div className="space-y-4">
+          {/* Title input takes full width */}
+          <div>
+            <label className="block text-sm text-fg-60 mb-1">Title</label>
+            <Input
+              type="text"
+              placeholder="e.g., Hotel Invoice"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          
+          {/* Category and Transaction Type in same row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-fg-60 mb-1">Title</label>
-              <Input
-                type="text"
-                placeholder="e.g., Hotel Invoice"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            <div>
+              {/* Category selection for the voucher */}
               <label className="block text-sm text-fg-60 mb-1">Category</label>
               <Select value={category} onChange={(e) => setCategory(e.target.value)}>
                 {["Bill", "Invoice", "Receipt", "Expense", "Other"].map((c) => (
@@ -88,8 +106,18 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
                 ))}
               </Select>
             </div>
+            <div>
+              {/* Transaction type selection (credit/debit) */}
+              <label className="block text-sm text-fg-60 mb-1">Transaction Type</label>
+              <Select value={transactionType} onChange={(e) => setTransactionType(e.target.value)}>
+                <option value="">Select type</option>
+                <option value="credit">credit</option>
+                <option value="debit">debit</option>
+              </Select>
+            </div>
           </div>
           <div>
+            {/* Optional description for added context */}
             <label className="block text-sm text-fg-60 mb-1">Description</label>
             <Input
               type="text"
@@ -99,6 +127,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
             />
           </div>
           <div>
+            {/* File picker for images and PDFs */}
             <label className="block text-sm text-fg-60 mb-1">Select files</label>
             <Input
               type="file"
@@ -110,6 +139,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
           </div>
           {files.length > 0 && (
             <div className="bg-bg-60 rounded-lg border border-bd-50 p-3">
+              {/* Preview of selected file names */}
               <div className="text-sm font-medium text-fg-50 mb-2">Selected Files</div>
               <ul className="text-sm text-fg-60 list-disc pl-5 space-y-1">
                 {files.map((f, idx) => (
@@ -122,6 +152,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
         </div>
       </ModalBody>
       <ModalFooter>
+        {/* Form actions: cancel or upload */}
         <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
         <Button variant="primary" onClick={handleUpload} disabled={isSubmitting || files.length === 0 || !title || !category}>
           {isSubmitting ? "Uploading..." : "Upload"}

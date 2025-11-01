@@ -91,7 +91,7 @@ const Ledger = () => {
           </div>
         </div>
 
-        {/* Tools Section */}
+        {/* Tools Section: search should flex to fill remaining space, filter has fixed width */}
         <div className="py-4">
           <div className="flex items-center space-x-4">
           {/* Search Bar */}
@@ -106,11 +106,13 @@ const Ledger = () => {
           </div>
 
           {/* Type Filter */}
-          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            {types.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </Select>
+          <div className="w-44">
+            <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              {types.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </Select>
+          </div>
 
           {/* More Filters */}
           <Button variant="secondary" size="icon">

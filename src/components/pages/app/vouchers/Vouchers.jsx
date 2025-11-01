@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Upload, Search, Filter, MoreHorizontal, Loader2 } from "lucide-react";
+// Import page icons and tools
+import { Upload, Search, Filter, MoreHorizontal, Loader2, History } from "lucide-react";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
 import UploadVoucherModal from "./UploadVoucherModal";
+// Import right panel components to show contextual details like rejection history
+import RightPanel from "../common/right-panel";
+import RejectionHistory from "../common/right-panel/RejectionHistory";
 import { listUserVouchers, sendVouchersForRequest } from "../../../../api/apiFunction/voucherServices";
 
 const Vouchers = () => {
@@ -16,6 +20,9 @@ const Vouchers = () => {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedIds, setSelectedIds] = useState([]);
   const [sending, setSending] = useState(false);
+  // Local state to manage right panel open/close and selected voucher for history view
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelVoucher, setPanelVoucher] = useState(null);
 
   const user = useMemo(() => {
     try {
@@ -27,6 +34,7 @@ const Vouchers = () => {
 
   const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
+  // Fetch vouchers for the current user and store in local state
   const fetchVouchers = async () => {
     if (!userId) return;
     try {
@@ -47,10 +55,12 @@ const Vouchers = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Toggle selection state for a voucher id
   const toggleSelect = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  // Move selected vouchers to requests list (send for approval)
   const moveSelectedToRequests = async () => {
     if (selectedIds.length === 0 || !userId) return;
     try {
@@ -67,6 +77,7 @@ const Vouchers = () => {
     }
   };
 
+  // Normalize API response to table-friendly shape and include OCR & rejection info
   const normalized = Array.isArray(vouchers)
     ? vouchers.map((v) => ({
         id: v._id || v.id,
@@ -77,6 +88,15 @@ const Vouchers = () => {
         created_at: v.created_at || v.date || "",
         files: Array.isArray(v.files) ? v.files : [],
         files_count: typeof v.files_count === "number" ? v.files_count : (Array.isArray(v.files) ? v.files.length : 0),
+        // OCR status from API (e.g. "Done", "Processing", "Failed")
+        ocr: v.OCR || v.ocr_status || "",
+        // Rejection count from API
+        rejection_count: typeof v.rejection_count === "number" ? v.rejection_count : 0,
+        // Additional fields that may be useful for history panel
+        rejected_at: v.rejected_at,
+        rejected_by: v.rejected_by,
+        rejection_reason: v.rejection_reason,
+        approver_id: v.approver_id,
       }))
     : [];
 
@@ -88,6 +108,7 @@ const Vouchers = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Format a datetime value into a readable string
   const formatDateTime = (value) => {
     if (!value) return "";
     const d = new Date(value);
@@ -101,6 +122,7 @@ const Vouchers = () => {
 
   const allVisibleIds = filtered.map((v) => v.id);
   const allSelectedOnPage = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id));
+  // Toggle select all for currently visible vouchers
   const toggleSelectAll = () => {
     if (allSelectedOnPage) {
       setSelectedIds((prev) => prev.filter((id) => !allVisibleIds.includes(id)));
@@ -113,10 +135,23 @@ const Vouchers = () => {
   const [previewFiles, setPreviewFiles] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
+  // Open image preview modal with selected files
   const openPreview = (files, index = 0) => {
     setPreviewFiles(Array.isArray(files) ? files : []);
     setPreviewIndex(index || 0);
     setPreviewOpen(true);
+  };
+
+  // Open the rejection history right panel for a specific voucher
+  const openRejectionPanel = (voucher) => {
+    setPanelVoucher(voucher);
+    setPanelOpen(true);
+  };
+
+  // Close the rejection history right panel
+  const closePanel = () => {
+    setPanelOpen(false);
+    setPanelVoucher(null);
   };
 
   return (
@@ -200,6 +235,8 @@ const Vouchers = () => {
               <TableHead className="whitespace-nowrap">Category</TableHead>
               <TableHead className="whitespace-nowrap">Files</TableHead>
               <TableHead className="whitespace-nowrap">Status</TableHead>
+              <TableHead className="whitespace-nowrap">OCR</TableHead>
+              <TableHead className="whitespace-nowrap">Rejection Count</TableHead>
               <TableHead className="whitespace-nowrap">Created</TableHead>
               <TableHead className="whitespace-nowrap">Preview</TableHead>
               {/* Actions column removed since not used */}
@@ -208,7 +245,7 @@ const Vouchers = () => {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={8}>
+                <TableCell className="text-center" colSpan={10}>
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
                   </div>
@@ -236,6 +273,23 @@ const Vouchers = () => {
                   <Badge variant={voucher.status === "approved" ? "success" : voucher.status === "rejected" ? "error" : voucher.status === "awaiting_approval" ? "info" : "warning"}>
                     {String(voucher.status || "pending").toUpperCase()}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  {/* Show OCR status from API */}
+                  <Badge variant={voucher.ocr === "Done" ? "success" : voucher.ocr === "Failed" ? "error" : voucher.ocr === "Processing" ? "info" : "warning"}>
+                    {String(voucher.ocr || "-")}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {/* Rejection count with a history icon to open right panel */}
+                  <button
+                    className="inline-flex items-center gap-2 text-fg-60 hover:text-fg-40"
+                    onClick={() => openRejectionPanel(voucher)}
+                    title="View rejection history"
+                  >
+                    <History className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="text-sm whitespace-nowrap">{typeof voucher.rejection_count === "number" ? voucher.rejection_count : 0}</span>
+                  </button>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatDateTime(voucher.created_at)}</span>
@@ -266,7 +320,7 @@ const Vouchers = () => {
 
             {filtered.length === 0 && !loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={8}>
+                <TableCell className="text-center" colSpan={10}>
                   <span className="text-sm text-fg-60">No vouchers match your filters.</span>
                 </TableCell>
               </TableRow>
@@ -289,6 +343,11 @@ const Vouchers = () => {
           files={previewFiles}
           initialIndex={previewIndex}
         />
+
+        {/* Right Panel to show contextual rejection history */}
+        <RightPanel open={panelOpen} onClose={closePanel} title="Rejection History">
+          <RejectionHistory voucher={panelVoucher} />
+        </RightPanel>
 
         {/* Manual entries are available in Text Vouchers */}
       </div>

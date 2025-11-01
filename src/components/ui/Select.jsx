@@ -14,9 +14,9 @@ const Select = forwardRef(
     };
 
     return (
-      <div className="relative">
+      <div className="relative w-full inline-block">
         <select
-          className={clsx(baseStyles, sizes[size], className)}
+          className={clsx("w-full", baseStyles, sizes[size], className)}
           ref={ref}
           {...props}
         >
@@ -25,7 +25,7 @@ const Select = forwardRef(
         <ChevronDown
           className={clsx(
             "absolute top-1/2 transform -translate-y-1/2 text-fg-60 pointer-events-none",
-            size === "lg" ? "right-3 w-5 h-5" : "right-2 w-4 h-4"
+            size === "lg" ? "right-3 w-5 h-5" : "right-3 w-4 h-4"
           )}
           strokeWidth={1.5}
         />

@@ -29,6 +29,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
     { to: "/app/vouchers", label: "Vouchers", icon: FileText },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
+    { to: "/app/actions", label: "Actions", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
   ];
 

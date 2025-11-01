@@ -23,6 +23,7 @@ import AppDashboard from "./components/pages/app/Dashboard";
 import Vouchers from "./components/pages/app/vouchers/Vouchers";
 import Requests from "./components/pages/app/Requests";
 import Ledger from "./components/pages/app/Ledger";
+import Actions from "./components/pages/app/actions";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
               <Route path="dashboard" element={<AppDashboard />} />
               <Route path="vouchers" element={<Vouchers />} />
               <Route path="requests" element={<Requests />} />
+              <Route path="actions" element={<Actions />} />
               <Route path="ledger" element={<Ledger />} />
               {/* Removed routes: bank-reconciliation, expences, payroll */}
             </Route>

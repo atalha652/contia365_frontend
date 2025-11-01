@@ -185,6 +185,7 @@ const AppPage = () => {
     if (path.includes("/app/dashboard")) label = "Dashboard";
     else if (path.includes("/app/vouchers")) label = "Vouchers";
     else if (path.includes("/app/requests")) label = "Requests";
+    else if (path.includes("/app/actions")) label = "Actions";
     else if (path.includes("/app/bank-reconciliation")) label = "Bank Reconciliation";
     else if (path.includes("/app/ledger")) label = "Ledger";
     else if (path.includes("/app/expences")) label = "Expenses";

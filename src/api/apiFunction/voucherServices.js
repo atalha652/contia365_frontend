@@ -99,6 +99,38 @@ export const getAwaitingApprovalVouchers = async ({ user_id }) => {
   }
 };
 
+// Fetch approved vouchers for a user (new endpoint)
+// This maps to GET /api/accounting/voucher/approved?user_id=...
+export const getApprovedVouchers = async ({ user_id }) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id");
+    const query = new URLSearchParams();
+    query.append("user_id", user_id);
+    const response = await httpGet({
+      url: `${VOUCHER_URL}/approved?${query.toString()}`,
+    });
+    const data = response?.data;
+    if (!data) return { count: 0, vouchers: [] };
+    if (Array.isArray(data)) return { count: data.length, vouchers: data };
+    return {
+      count: Number(data?.count || 0),
+      vouchers: Array.isArray(data?.vouchers) ? data.vouchers : [],
+    };
+  } catch (err) {
+    const statusCode = err?.response?.status;
+    if (statusCode === 404) {
+      return { count: 0, vouchers: [] };
+    }
+    console.error("Get approved vouchers error:", err);
+    throw err;
+  }
+};
+
+// Convenience wrapper: list approved vouchers only
+export const listApprovedVouchers = async ({ user_id }) => {
+  return getApprovedVouchers({ user_id });
+};
+
 // Send one or multiple vouchers for approval
 export const sendVouchersForRequest = async ({ voucher_ids, approver_id }) => {
   try {

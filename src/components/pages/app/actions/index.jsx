@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Search, Filter, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
-import { listUserVouchers, runVoucherOCR, getVoucherOCRJobStatus } from "../../../../api/apiFunction/voucherServices";
+// Use approved vouchers endpoint for Execution tab
+import { listApprovedVouchers, runVoucherOCR, getVoucherOCRJobStatus } from "../../../../api/apiFunction/voucherServices";
 import { toast } from "react-toastify";
 
 const Actions = () => {
@@ -28,13 +29,14 @@ const Actions = () => {
 
   const [vouchers, setVouchers] = useState([]);
 
-  // Fetch vouchers for the current user
+  // Fetch approved vouchers for the current user
   const fetchVouchers = async () => {
     if (!userId) return;
     try {
       setLoading(true);
       setError("");
-      const { vouchers: items } = await listUserVouchers({ user_id: userId });
+      // Call the new approved vouchers endpoint
+      const { vouchers: items } = await listApprovedVouchers({ user_id: userId });
       setVouchers(Array.isArray(items) ? items : []);
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to fetch vouchers";
@@ -115,8 +117,9 @@ const Actions = () => {
         <div className="pt-8 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-fg-40">Actions</h1>
-              <p className="text-sm text-fg-60 mt-1">Review items and run OCR when ready.</p>
+              {/* Execution tab header */}
+              <h1 className="text-2xl font-semibold text-fg-40">Execution</h1>
+              <p className="text-sm text-fg-60 mt-1">Approved vouchers and OCR status overview.</p>
             </div>
             <div className="flex items-center space-x-3" />
           </div>
@@ -193,11 +196,12 @@ const Actions = () => {
               <TableHead className="w-10" isFirst={true}>
                 <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={allSelectedOnPage} onChange={toggleSelectAll} aria-label="Select all" />
               </TableHead>
-              <TableHead className="whitespace-nowrap">Item</TableHead>
+              {/* Removed Item header to match rows without Item column */}
               <TableHead className="whitespace-nowrap">Title</TableHead>
               <TableHead className="whitespace-nowrap">Category</TableHead>
               <TableHead className="whitespace-nowrap">Files</TableHead>
-              <TableHead className="whitespace-nowrap">Status</TableHead>
+              {/* Replace Status with OCR status column */}
+              <TableHead className="whitespace-nowrap">OCR</TableHead>
               <TableHead className="whitespace-nowrap">Created</TableHead>
               <TableHead className="w-44 whitespace-nowrap">Preview</TableHead>
               <TableHead className="whitespace-nowrap">Actions</TableHead>
@@ -206,7 +210,8 @@ const Actions = () => {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={9}>
+                {/* Loading row matches 8 visible columns after removing Item */}
+                <TableCell className="text-center" colSpan={8}>
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
                   </div>
@@ -216,7 +221,7 @@ const Actions = () => {
 
             {filtered.length === 0 && !loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={9}>
+                <TableCell className="text-center" colSpan={8}>
                   <div className="py-6 text-sm text-fg-60">No items found.</div>
                 </TableCell>
               </TableRow>
@@ -227,9 +232,7 @@ const Actions = () => {
                 <TableCell>
                   <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select item ${item.id}`} />
                 </TableCell>
-                <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">#{item.id}</span>
-                </TableCell>
+                {/* Removed Item id cell */}
                 <TableCell>
                   <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{item.title || "-"}</span>
                 </TableCell>
@@ -240,7 +243,10 @@ const Actions = () => {
                   <span className="text-sm text-fg-60 whitespace-nowrap">{item.files_count ?? 0}</span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={item.status === "processed" ? "success" : item.status === "error" ? "error" : "warning"}>{String(item.status || "pending").toUpperCase()}</Badge>
+                  {/* Show OCR status from API instead of general status */}
+                  <Badge variant={item.ocr_status === "done" ? "success" : item.ocr_status === "failed" ? "error" : item.ocr_status === "processing" ? "info" : "warning"}>
+                    {String(item.ocr_status || "-").toUpperCase()}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatDateTime(item.created_at)}</span>

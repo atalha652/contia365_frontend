@@ -14,3 +14,11 @@ export const REPORT_URL = `${SERVER_PATH}/api/report`;
 
 // Vouchers End Points
 export const VOUCHER_URL = `${SERVER_PATH}/api/accounting/voucher`;
+
+// Ledgers End Points
+// Base URL for ledger operations (GET by user, PUT update, DELETE entry)
+export const LEDGERS_URL = `${SERVER_PATH}/api/accounting/ledgers`;
+
+// Dashboard End Points
+// Base URL for dashboard statistics and summary
+export const DASHBOARD_URL = `${SERVER_PATH}/api/accounting/dashboard`;

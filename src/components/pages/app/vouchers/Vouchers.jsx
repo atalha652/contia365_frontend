@@ -230,12 +230,11 @@ const Vouchers = () => {
               <TableHead className="w-10" isFirst={true}>
                 <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={allSelectedOnPage} onChange={toggleSelectAll} aria-label="Select all" />
               </TableHead>
-              <TableHead className="whitespace-nowrap">Voucher</TableHead>
+              {/* Removed Voucher column since voucher id isn't needed */}
               <TableHead className="whitespace-nowrap">Title</TableHead>
               <TableHead className="whitespace-nowrap">Category</TableHead>
               <TableHead className="whitespace-nowrap">Files</TableHead>
               <TableHead className="whitespace-nowrap">Status</TableHead>
-              <TableHead className="whitespace-nowrap">OCR</TableHead>
               <TableHead className="whitespace-nowrap">Rejection Count</TableHead>
               <TableHead className="whitespace-nowrap">Created</TableHead>
               <TableHead className="whitespace-nowrap">Preview</TableHead>
@@ -245,7 +244,8 @@ const Vouchers = () => {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={10}>
+                {/* Loading row uses colSpan=8 to match current headers */}
+                <TableCell className="text-center" colSpan={8}>
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
                   </div>
@@ -257,9 +257,7 @@ const Vouchers = () => {
                 <TableCell>
                   <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={selectedIds.includes(voucher.id)} onChange={() => toggleSelect(voucher.id)} aria-label={`Select voucher ${voucher.id}`} />
                 </TableCell>
-                <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">#{voucher.id}</span>
-                </TableCell>
+                {/* Removed Voucher id cell */}
                 <TableCell>
                   <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{voucher.title || "-"}</span>
                 </TableCell>
@@ -272,12 +270,6 @@ const Vouchers = () => {
                 <TableCell>
                   <Badge variant={voucher.status === "approved" ? "success" : voucher.status === "rejected" ? "error" : voucher.status === "awaiting_approval" ? "info" : "warning"}>
                     {String(voucher.status || "pending").toUpperCase()}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {/* Show OCR status from API */}
-                  <Badge variant={voucher.ocr === "Done" ? "success" : voucher.ocr === "Failed" ? "error" : voucher.ocr === "Processing" ? "info" : "warning"}>
-                    {String(voucher.ocr || "-")}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -320,7 +312,7 @@ const Vouchers = () => {
 
             {filtered.length === 0 && !loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={10}>
+                <TableCell className="text-center" colSpan={8}>
                   <span className="text-sm text-fg-60">No vouchers match your filters.</span>
                 </TableCell>
               </TableRow>

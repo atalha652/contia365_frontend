@@ -15,11 +15,10 @@ const formatDateTime = (value) => {
 };
 
 const RejectionHistory = ({ voucher }) => {
-  // Build a list of rejection items from API response structure
+  // Build rejection entries from array or single-record fields
   const itemsFromArray = Array.isArray(voucher?.rejection_history) ? voucher.rejection_history : [];
-
-  // Fallback to single record if array is not present
-  const itemsFromSingle = (voucher?.rejection_reason || voucher?.rejected_at || voucher?.rejected_by)
+  const hasSingleRecord = Boolean(voucher?.rejection_reason || voucher?.rejected_at || voucher?.rejected_by);
+  const itemsFromSingle = hasSingleRecord
     ? [{
         rejection_reason: voucher?.rejection_reason || "",
         rejected_at: voucher?.rejected_at || voucher?.updated_at || "",
@@ -27,11 +26,19 @@ const RejectionHistory = ({ voucher }) => {
       }]
     : [];
 
-  // Combine both sources of history
-  const items = itemsFromArray.length > 0 ? itemsFromArray : itemsFromSingle;
+  // Determine count and items; hide details when count is zero
+  const provisionalItems = itemsFromArray.length > 0 ? itemsFromArray : itemsFromSingle;
+  const count = typeof voucher?.rejection_count === "number" ? voucher.rejection_count : provisionalItems.length;
+  const items = count === 0 ? [] : provisionalItems;
 
-  // Get the count from response when available
-  const count = typeof voucher?.rejection_count === "number" ? voucher.rejection_count : items.length;
+  // Compute the last rejection info (date/by/reason) for display in a concise summary
+  let last = null;
+  if (items.length > 0) {
+    // Prefer the most recent by rejected_at when available; otherwise take the last entry
+    last = items
+      .slice()
+      .sort((a, b) => new Date(b?.rejected_at || 0) - new Date(a?.rejected_at || 0))[0] || items[items.length - 1];
+  }
 
   return (
     <div className="space-y-4">
@@ -41,28 +48,40 @@ const RejectionHistory = ({ voucher }) => {
         <div className="text-2xl font-semibold text-fg-40">{count}</div>
       </div>
 
-      {/* Detailed list of each rejection entry */}
-      {items.length > 0 ? (
-        <div className="space-y-3">
-          {items.map((item, idx) => (
-            <div key={idx} className="border border-bd-50 rounded-lg p-3">
-              {/* Rejection date and by whom */}
-              <div className="text-sm text-fg-60">
-                <span className="font-medium text-fg-50">Date:</span> {formatDateTime(item?.rejected_at)}
-              </div>
-              <div className="text-sm text-fg-60 mt-1">
-                <span className="font-medium text-fg-50">By:</span> {item?.rejected_by || "-"}
-              </div>
-              {/* Rejection reason */}
-              <div className="text-sm text-fg-60 mt-2">
-                <span className="font-medium text-fg-50">Reason:</span> {item?.rejection_reason || "-"}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        // Empty state when there are no rejection entries
-        <div className="text-sm text-fg-60">No rejection history found for this voucher.</div>
+      {/* Summary rows: headings on left and values on right */}
+      <div className="grid grid-cols-2 gap-y-2">
+        {/* // Total Rejections
+        <div className="text-sm text-fg-60">Total Rejections</div>
+        <div className="text-sm text-fg-40 text-right">{count}</div> */}
+
+        {/* Last rejection date (hidden when count is zero) */}
+        {count > 0 && (
+          <>
+            <div className="text-sm text-fg-60">Last rejection date</div>
+            <div className="text-sm text-fg-40 text-right">{formatDateTime(last?.rejected_at)}</div>
+          </>
+        )}
+
+        {/* Last rejected by (hidden when count is zero) */}
+        {count > 0 && (
+          <>
+            <div className="text-sm text-fg-60">Last rejected by</div>
+            <div className="text-sm text-fg-40 text-right">{last?.rejected_by || "-"}</div>
+          </>
+        )}
+
+        {/* Last rejection reason (hidden when count is zero) */}
+        {count > 0 && (
+          <>
+            <div className="text-sm text-fg-60">Last rejection reason</div>
+            <div className="text-sm text-fg-40 text-right">{last?.rejection_reason || "-"}</div>
+          </>
+        )}
+      </div>
+
+      {/* Empty state note when there are no rejections */}
+      {count === 0 && (
+        <div className="text-sm text-fg-60 mt-3">No rejections.</div>
       )}
     </div>
   );

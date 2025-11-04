@@ -21,6 +21,8 @@ import InvoicesV3 from "./pages/InvoicesV3";
 import AppPage from "./pages/AppPage";
 import AppDashboard from "./components/pages/app/Dashboard";
 import Vouchers from "./components/pages/app/vouchers/Vouchers";
+import VouchersUploads from "./components/pages/app/vouchers/Uploads";
+import VouchersGmail from "./components/pages/app/vouchers/Gmail";
 import Requests from "./components/pages/app/Requests";
 // Use the new folder-based Ledger page for consistency with other tabs
 import Ledger from "./components/pages/app/ledger";
@@ -59,7 +61,14 @@ function App() {
             <Route path="/app" element={<AppPage />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AppDashboard />} />
-              <Route path="vouchers" element={<Vouchers />} />
+              <Route path="vouchers" element={<Vouchers />}>
+                {/* Index route: default to uploads tab */}
+                <Route index element={<Navigate to="uploads" replace />} />
+                {/* Uploads tab content */}
+                <Route path="uploads" element={<VouchersUploads />} />
+                {/* Gmail tab content */}
+                <Route path="gmail" element={<VouchersGmail />} />
+              </Route>
               <Route path="requests" element={<Requests />} />
               {/* Renamed route: /app/execution */}
               <Route path="execution" element={<Actions />} />

@@ -22,3 +22,7 @@ export const LEDGERS_URL = `${SERVER_PATH}/api/accounting/ledgers`;
 // Dashboard End Points
 // Base URL for dashboard statistics and summary
 export const DASHBOARD_URL = `${SERVER_PATH}/api/accounting/dashboard`;
+
+// Gmail End Points
+// Base URL for Gmail APIs (auth, purchases, search, filters, summary)
+export const GMAIL_URL = `${SERVER_PATH}/api/gmail`;

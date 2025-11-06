@@ -25,11 +25,12 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     navigate("/login");
   };
 
+  // Sidebar navigation items for app sections (renamed Actions -> Execution)
   const items = [
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
     { to: "/app/vouchers", label: "Vouchers", icon: FileText },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
-    { to: "/app/actions", label: "Actions", icon: Receipt },
+    { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
   ];
 

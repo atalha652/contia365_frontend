@@ -17,8 +17,12 @@ import {
   ModalFooter,
   ImagePreviewModal,
 } from "../../ui";
-import { Check, Filter, MoreHorizontal, Search, X, Loader2 } from "lucide-react";
+// Import icons including History for rejection count panel
+import { Check, Filter, MoreHorizontal, Search, X, Loader2, History } from "lucide-react";
 import { getAwaitingApprovalVouchers, approveVouchers, rejectVouchers } from "../../../api/apiFunction/voucherServices";
+// Import reusable right panel and rejection history component
+import RightPanel from "./common/right-panel";
+import RejectionHistory from "./common/right-panel/RejectionHistory";
 
 const Requests = () => {
   const { approveVoucherRequest } = useOutletContext() || {};
@@ -35,6 +39,9 @@ const Requests = () => {
   const [declineIds, setDeclineIds] = useState([]);
   const [declineNote, setDeclineNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  // State to manage right panel for rejection history
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelVoucher, setPanelVoucher] = useState(null);
 
   const user = useMemo(() => {
     try {
@@ -65,6 +72,7 @@ const Requests = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Normalize awaiting approval vouchers to table-ready shape
   const normalized = Array.isArray(vouchers)
     ? vouchers.map((v) => ({
         id: v._id || v.id,
@@ -76,6 +84,10 @@ const Requests = () => {
         approval_requested_at: v.approval_requested_at || "",
         approver_id: v.approver_id || "",
         rejection_count: typeof v.rejection_count === "number" ? v.rejection_count : 0,
+        // Include last rejection fields if present
+        rejected_at: v.rejected_at,
+        rejected_by: v.rejected_by,
+        rejection_reason: v.rejection_reason,
         files: Array.isArray(v.files) ? v.files : [],
         files_count: typeof v.files_count === "number" ? v.files_count : (Array.isArray(v.files) ? v.files.length : 0),
       }))
@@ -109,10 +121,23 @@ const Requests = () => {
   const [previewFiles, setPreviewFiles] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
+  // Open image preview modal
   const openPreview = (files, index = 0) => {
     setPreviewFiles(Array.isArray(files) ? files : []);
     setPreviewIndex(index || 0);
     setPreviewOpen(true);
+  };
+
+  // Open right panel with rejection history for a voucher
+  const openRejectionPanel = (voucher) => {
+    setPanelVoucher(voucher);
+    setPanelOpen(true);
+  };
+
+  // Close right panel and clear voucher
+  const closePanel = () => {
+    setPanelOpen(false);
+    setPanelVoucher(null);
   };
 
   const toggleSelect = (id) => {
@@ -267,7 +292,7 @@ const Requests = () => {
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead className="whitespace-nowrap">Voucher</TableHead>
+              {/* Removed Voucher column as voucher id isn't needed */}
               <TableHead className="whitespace-nowrap">Title</TableHead>
               <TableHead className="whitespace-nowrap">Category</TableHead>
               <TableHead className="whitespace-nowrap">Files</TableHead>
@@ -280,8 +305,9 @@ const Requests = () => {
           </TableHeader>
           <TableBody>
             {loading && (
+              // Adjust colSpan to reflect 9 visible columns
               <TableRow>
-                <TableCell className="text-center" colSpan={10}>
+                <TableCell className="text-center" colSpan={9}>
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
                   </div>
@@ -299,9 +325,7 @@ const Requests = () => {
                     aria-label={`Select voucher #${voucher.id}`}
                   />
                 </TableCell>
-                <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">#{voucher.id}</span>
-                </TableCell>
+                {/* Removed Voucher id cell */}
                 <TableCell>
                   <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{voucher.title || "-"}</span>
                 </TableCell>
@@ -312,7 +336,15 @@ const Requests = () => {
                   <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.files_count ?? 0}</span>
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.rejection_count ?? 0}</span>
+                  {/* Rejection count with history icon to open side panel */}
+                  <button
+                    className="inline-flex items-center gap-2 text-fg-60 hover:text-fg-40"
+                    onClick={() => openRejectionPanel(voucher)}
+                    title="View rejection history"
+                  >
+                    <History className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="text-sm whitespace-nowrap">{typeof voucher.rejection_count === "number" ? voucher.rejection_count : 0}</span>
+                  </button>
                 </TableCell>
                 <TableCell>
                   <Badge variant={voucher.status === "approved" ? "success" : voucher.status === "rejected" ? "error" : "info"}>
@@ -460,6 +492,11 @@ const Requests = () => {
           files={previewFiles}
           initialIndex={previewIndex}
         />
+
+        {/* Right Panel to display rejection history for awaiting approval vouchers */}
+        <RightPanel open={panelOpen} onClose={closePanel} title="Rejection History">
+          <RejectionHistory voucher={panelVoucher} />
+        </RightPanel>
       </div>
     </div>
   );

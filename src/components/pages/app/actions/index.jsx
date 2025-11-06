@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Search, Filter, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
-import { listUserVouchers, runVoucherOCR, getVoucherOCRJobStatus } from "../../../../api/apiFunction/voucherServices";
+// Use approved vouchers endpoint for Execution tab
+import { listApprovedVouchers, runVoucherOCR, getVoucherOCRJobStatus } from "../../../../api/apiFunction/voucherServices";
 import { toast } from "react-toastify";
 
 const Actions = () => {
@@ -13,7 +14,9 @@ const Actions = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedIds, setSelectedIds] = useState([]);
-  const [sending, setSending] = useState(false);
+  // Track bulk OCR submission and per-row OCR submission states separately
+  const [bulkSending, setBulkSending] = useState(false);
+  const [rowSendingIds, setRowSendingIds] = useState([]);
 
   const user = useMemo(() => {
     try {
@@ -26,12 +29,14 @@ const Actions = () => {
 
   const [vouchers, setVouchers] = useState([]);
 
+  // Fetch approved vouchers for the current user
   const fetchVouchers = async () => {
     if (!userId) return;
     try {
       setLoading(true);
       setError("");
-      const { vouchers: items } = await listUserVouchers({ user_id: userId });
+      // Call the new approved vouchers endpoint
+      const { vouchers: items } = await listApprovedVouchers({ user_id: userId });
       setVouchers(Array.isArray(items) ? items : []);
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to fetch vouchers";
@@ -46,6 +51,7 @@ const Actions = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Normalize vouchers to a consistent shape for display
   const normalized = useMemo(() => {
     const source = Array.isArray(vouchers) ? vouchers : [];
     return source.map((v) => ({
@@ -60,6 +66,7 @@ const Actions = () => {
     }));
   }, [vouchers]);
 
+  // Apply search and status filters
   const filtered = normalized.filter((v) => {
     const search = searchQuery.toLowerCase();
     const matchesSearch = `${v.id} ${v.title} ${v.category}`.toLowerCase().includes(search);
@@ -67,6 +74,7 @@ const Actions = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Render date-time values consistently
   const formatDateTime = (value) => {
     if (!value) return "";
     const d = new Date(value);
@@ -78,6 +86,7 @@ const Actions = () => {
     return `${mon}, ${day}, ${year} ${time}`;
   };
 
+  // Checkbox selections for all/individual rows on current page
   const allVisibleIds = filtered.map((v) => v.id);
   const allSelectedOnPage = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id));
   const toggleSelectAll = () => {
@@ -94,6 +103,7 @@ const Actions = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFiles, setPreviewFiles] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+  // Open the image preview modal for the selected voucher files
   const openPreview = (files, index = 0) => {
     setPreviewFiles(Array.isArray(files) ? files : []);
     setPreviewIndex(index || 0);
@@ -107,8 +117,9 @@ const Actions = () => {
         <div className="pt-8 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-fg-40">Actions</h1>
-              <p className="text-sm text-fg-60 mt-1">Review items and run OCR when ready.</p>
+              {/* Execution tab header */}
+              <h1 className="text-2xl font-semibold text-fg-40">Execution</h1>
+              <p className="text-sm text-fg-60 mt-1">Approved vouchers and OCR status overview.</p>
             </div>
             <div className="flex items-center space-x-3" />
           </div>
@@ -142,14 +153,15 @@ const Actions = () => {
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
             </Button>
 
+            {/* Bulk OCR button: runs OCR for selected voucher IDs only */}
             <Button
               variant="primary"
-              disabled={selectedIds.length === 0 || sending}
+              disabled={selectedIds.length === 0 || bulkSending}
               className="whitespace-nowrap"
               onClick={async () => {
                 if (!userId || selectedIds.length === 0) return;
                 try {
-                  setSending(true);
+                  setBulkSending(true);
                   const res = await runVoucherOCR({ user_id: userId, voucher_ids: selectedIds });
                   toast.success("OCR processing started");
                   // Optional: basic follow-up fetch to reflect any immediate status changes
@@ -160,7 +172,7 @@ const Actions = () => {
                   const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
                   toast.error(message);
                 } finally {
-                  setSending(false);
+                  setBulkSending(false);
                 }
               }}
             >
@@ -184,11 +196,12 @@ const Actions = () => {
               <TableHead className="w-10" isFirst={true}>
                 <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={allSelectedOnPage} onChange={toggleSelectAll} aria-label="Select all" />
               </TableHead>
-              <TableHead className="whitespace-nowrap">Item</TableHead>
+              {/* Removed Item header to match rows without Item column */}
               <TableHead className="whitespace-nowrap">Title</TableHead>
               <TableHead className="whitespace-nowrap">Category</TableHead>
               <TableHead className="whitespace-nowrap">Files</TableHead>
-              <TableHead className="whitespace-nowrap">Status</TableHead>
+              {/* Replace Status with OCR status column */}
+              <TableHead className="whitespace-nowrap">OCR</TableHead>
               <TableHead className="whitespace-nowrap">Created</TableHead>
               <TableHead className="w-44 whitespace-nowrap">Preview</TableHead>
               <TableHead className="whitespace-nowrap">Actions</TableHead>
@@ -197,7 +210,8 @@ const Actions = () => {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={9}>
+                {/* Loading row matches 8 visible columns after removing Item */}
+                <TableCell className="text-center" colSpan={8}>
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
                   </div>
@@ -207,7 +221,7 @@ const Actions = () => {
 
             {filtered.length === 0 && !loading && (
               <TableRow>
-                <TableCell className="text-center" colSpan={9}>
+                <TableCell className="text-center" colSpan={8}>
                   <div className="py-6 text-sm text-fg-60">No items found.</div>
                 </TableCell>
               </TableRow>
@@ -218,9 +232,7 @@ const Actions = () => {
                 <TableCell>
                   <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select item ${item.id}`} />
                 </TableCell>
-                <TableCell>
-                  <span className="text-sm text-fg-60 whitespace-nowrap">#{item.id}</span>
-                </TableCell>
+                {/* Removed Item id cell */}
                 <TableCell>
                   <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{item.title || "-"}</span>
                 </TableCell>
@@ -231,7 +243,10 @@ const Actions = () => {
                   <span className="text-sm text-fg-60 whitespace-nowrap">{item.files_count ?? 0}</span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={item.status === "processed" ? "success" : item.status === "error" ? "error" : "warning"}>{String(item.status || "pending").toUpperCase()}</Badge>
+                  {/* Show OCR status from API instead of general status */}
+                  <Badge variant={item.ocr_status === "done" ? "success" : item.ocr_status === "failed" ? "error" : item.ocr_status === "processing" ? "info" : "warning"}>
+                    {String(item.ocr_status || "-").toUpperCase()}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatDateTime(item.created_at)}</span>
@@ -240,7 +255,7 @@ const Actions = () => {
                   <div className="flex items-center gap-2 w-[176px]">
                     {(item.files || []).slice(0, 3).map((f, i) => (
                       <button key={i} onClick={() => openPreview(item.files, i)} className="border border-bd-50 rounded-md p-0.5" title={f?.name || `File ${i + 1}`}>
-                        <img src={f?.file_url || f?.url || ""} alt={f?.name || `File ${i + 1}`} className="w-14 h-14 rounded-md object-cover" />
+                        <img src={f?.file_url || f?.url || ""} alt={f?.name || `File ${i + 1}`} className="w-8 h-8 rounded-md object-cover" />
                       </button>
                     ))}
                     {Array.isArray(item.files) && item.files.length > 5 && (
@@ -249,13 +264,14 @@ const Actions = () => {
                   </div>
                 </TableCell>
                 <TableCell>
+                  {/* Per-row OCR button: only disable the clicked row while processing */}
                   <Button
-                    variant="secondary"
-                    disabled={sending}
+                    variant="primary"
+                    disabled={rowSendingIds.includes(item.id)}
                     onClick={async () => {
                       if (!userId) return;
                       try {
-                        setSending(true);
+                        setRowSendingIds((prev) => Array.from(new Set([...prev, item.id])));
                         await runVoucherOCR({ user_id: userId, voucher_ids: [item.id] });
                         toast.success(`OCR started for #${item.id}`);
                         setTimeout(async () => {
@@ -265,7 +281,7 @@ const Actions = () => {
                         const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
                         toast.error(message);
                       } finally {
-                        setSending(false);
+                        setRowSendingIds((prev) => prev.filter((id) => id !== item.id));
                       }
                     }}
                   >

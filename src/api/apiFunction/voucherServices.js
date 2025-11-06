@@ -2,19 +2,25 @@ import { VOUCHER_URL } from "../restEndpoint";
 import { httpPost, httpGet } from "../../utils/httpMethods";
 import { SERVER_PATH } from "../restEndpoint";
 
-// Upload voucher(s): receipts or invoices
-export const uploadVouchers = async ({ user_id, files, title, description, category }) => {
+// Upload voucher(s): receipts or invoices with optional transaction_type
+// This sends the user's files and metadata to the backend upload endpoint.
+export const uploadVouchers = async ({ user_id, files, title, description, category, transaction_type }) => {
   try {
     if (!user_id) throw new Error("Missing user_id for voucher upload");
     if (!files || files.length === 0) throw new Error("Please select at least one file");
     if (!title) throw new Error("Please provide a title");
     if (!category) throw new Error("Please select a category");
+    // If transaction_type is provided, ensure it's one of the accepted values
+    if (transaction_type && !["credit", "debit"].includes(transaction_type)) {
+      throw new Error("transaction_type must be either 'credit' or 'debit'");
+    }
 
     const formData = new FormData();
     formData.append("user_id", user_id);
     formData.append("title", title);
     formData.append("description", description || "");
     formData.append("category", category);
+    if (transaction_type) formData.append("transaction_type", transaction_type);
     files.forEach((file) => formData.append("files", file));
 
     const response = await httpPost({
@@ -91,6 +97,38 @@ export const getAwaitingApprovalVouchers = async ({ user_id }) => {
     console.error("Get awaiting approval vouchers error:", err);
     throw err;
   }
+};
+
+// Fetch approved vouchers for a user (new endpoint)
+// This maps to GET /api/accounting/voucher/approved?user_id=...
+export const getApprovedVouchers = async ({ user_id }) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id");
+    const query = new URLSearchParams();
+    query.append("user_id", user_id);
+    const response = await httpGet({
+      url: `${VOUCHER_URL}/approved?${query.toString()}`,
+    });
+    const data = response?.data;
+    if (!data) return { count: 0, vouchers: [] };
+    if (Array.isArray(data)) return { count: data.length, vouchers: data };
+    return {
+      count: Number(data?.count || 0),
+      vouchers: Array.isArray(data?.vouchers) ? data.vouchers : [],
+    };
+  } catch (err) {
+    const statusCode = err?.response?.status;
+    if (statusCode === 404) {
+      return { count: 0, vouchers: [] };
+    }
+    console.error("Get approved vouchers error:", err);
+    throw err;
+  }
+};
+
+// Convenience wrapper: list approved vouchers only
+export const listApprovedVouchers = async ({ user_id }) => {
+  return getApprovedVouchers({ user_id });
 };
 
 // Send one or multiple vouchers for approval

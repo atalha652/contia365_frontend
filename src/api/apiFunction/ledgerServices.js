@@ -1,0 +1,62 @@
+import { LEDGERS_URL, SERVER_PATH } from "../restEndpoint";
+import { httpGet, httpPut, httpDelete } from "../../utils/httpMethods";
+
+// This service fetches all ledger entries for a user and normalizes the response
+export const getUserLedgers = async ({ user_id }) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id");
+    const response = await httpGet({ url: `${LEDGERS_URL}/user/${user_id}` });
+    return response?.data;
+  } catch (err) {
+    console.error("Get ledgers by user error:", err);
+    throw err;
+  }
+};
+
+// This helper returns a normalized list and count for UI consumption
+export const listUserLedgers = async ({ user_id }) => {
+  try {
+    const data = await getUserLedgers({ user_id });
+    const entries = Array.isArray(data?.entries) ? data.entries : [];
+    const total_count = Number(data?.total_count ?? entries.length);
+    return { total_count, entries };
+  } catch (err) {
+    // Treat 404/empty cases as empty list rather than error
+    const statusCode = err?.response?.status;
+    if (statusCode === 404) {
+      return { total_count: 0, entries: [] };
+    }
+    console.error("List user ledgers error:", err);
+    throw err;
+  }
+};
+
+// This service updates the invoice_data for a specific ledger entry
+export const updateLedgerInvoiceData = async ({ ledger_id, invoice_data }) => {
+  try {
+    if (!ledger_id) throw new Error("Missing ledger_id");
+    if (!invoice_data || typeof invoice_data !== "object") {
+      throw new Error("invoice_data must be a valid object");
+    }
+    const response = await httpPut({
+      url: `${LEDGERS_URL}/${ledger_id}`,
+      payload: { invoice_data },
+    });
+    return response?.data;
+  } catch (err) {
+    console.error("Update ledger invoice_data error:", err);
+    throw err;
+  }
+};
+
+// This service deletes a ledger entry by ID
+export const deleteLedgerEntry = async ({ ledger_id }) => {
+  try {
+    if (!ledger_id) throw new Error("Missing ledger_id");
+    const response = await httpDelete({ url: `${LEDGERS_URL}/${ledger_id}` });
+    return response?.data;
+  } catch (err) {
+    console.error("Delete ledger entry error:", err);
+    throw err;
+  }
+};

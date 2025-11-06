@@ -21,8 +21,12 @@ import InvoicesV3 from "./pages/InvoicesV3";
 import AppPage from "./pages/AppPage";
 import AppDashboard from "./components/pages/app/Dashboard";
 import Vouchers from "./components/pages/app/vouchers/Vouchers";
+import VouchersUploads from "./components/pages/app/vouchers/Uploads";
+import VouchersGmail from "./components/pages/app/vouchers/Gmail";
 import Requests from "./components/pages/app/Requests";
-import Ledger from "./components/pages/app/Ledger";
+// Use the new folder-based Ledger page for consistency with other tabs
+import Ledger from "./components/pages/app/ledger";
+// Execution tab uses the existing Actions component implementation
 import Actions from "./components/pages/app/actions";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 
@@ -57,9 +61,17 @@ function App() {
             <Route path="/app" element={<AppPage />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AppDashboard />} />
-              <Route path="vouchers" element={<Vouchers />} />
+              <Route path="vouchers" element={<Vouchers />}>
+                {/* Index route: default to uploads tab */}
+                <Route index element={<Navigate to="uploads" replace />} />
+                {/* Uploads tab content */}
+                <Route path="uploads" element={<VouchersUploads />} />
+                {/* Gmail tab content */}
+                <Route path="gmail" element={<VouchersGmail />} />
+              </Route>
               <Route path="requests" element={<Requests />} />
-              <Route path="actions" element={<Actions />} />
+              {/* Renamed route: /app/execution */}
+              <Route path="execution" element={<Actions />} />
               <Route path="ledger" element={<Ledger />} />
               {/* Removed routes: bank-reconciliation, expences, payroll */}
             </Route>

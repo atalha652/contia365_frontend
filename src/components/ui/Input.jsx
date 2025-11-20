@@ -8,7 +8,7 @@ const Input = forwardRef(
 
     const sizes = {
       sm: "h-8 px-3 py-1 text-xs rounded-lg",
-      default: "h-9 px-3 py-2 text-sm rounded-xl",
+      default: "h-9 px-3 py-1 text-sm rounded-xl",
       lg: "h-10 px-4 py-2 text-base rounded-xl",
     };
 

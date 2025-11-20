@@ -3,9 +3,9 @@ import { authHttpPost, httpGetWithOutToken } from "../../utils/httpMethods";
 
 export const signUp = async (data) => {
   try {
-    const response = await authHttpPost({ 
-      url: AUTH_URL + '/signup', 
-      payload: data 
+    const response = await authHttpPost({
+      url: AUTH_URL + '/signup',
+      payload: data
     });
     return response;
   } catch (err) {
@@ -17,9 +17,9 @@ export const signUp = async (data) => {
 
 export const login = async (data) => {
   try {
-    const response = await authHttpPost({ 
-      url: AUTH_URL + '/login', 
-      payload: data 
+    const response = await authHttpPost({
+      url: AUTH_URL + '/login',
+      payload: data
     });
     return response;
   } catch (err) {
@@ -31,8 +31,8 @@ export const login = async (data) => {
 
 export const getOrgTypes = async () => {
   try {
-    const response = await httpGetWithOutToken({ 
-      url: AUTH_URL + '/org-types' 
+    const response = await httpGetWithOutToken({
+      url: AUTH_URL + '/org-types'
     });
     return response?.data || [];
   } catch (err) {
@@ -40,3 +40,19 @@ export const getOrgTypes = async () => {
     return [];
   }
 };
+
+
+//Login with google 
+
+
+export const loginWithGoogle = async () => {
+  try {
+    const response = await httpGetWithOutToken({
+      url: AUTH_URL + '/google/authorize',
+    });
+    return response;
+  } catch (err) {
+    console.error('Google Login error:', err);
+    return err?.response || { status: 500, data: { message: 'An unexpected error occurred' } };
+  }
+}

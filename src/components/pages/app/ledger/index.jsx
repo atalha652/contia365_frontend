@@ -49,6 +49,8 @@ const Ledger = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSection, setPanelSection] = useState(null);
   const [panelEntry, setPanelEntry] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, ledgerId: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Removed image preview functionality from ledger as requested
 
@@ -82,18 +84,26 @@ const Ledger = () => {
     }
   };
 
+  // Show delete confirmation modal
+  const showDeleteConfirmation = (ledger_id) => {
+    setDeleteModal({ open: true, ledgerId: ledger_id });
+  };
+
   // This function deletes a single ledger entry and refreshes the table
-  const removeEntry = async (ledger_id) => {
-    if (!ledger_id) return;
+  const confirmDelete = async () => {
+    const { ledgerId } = deleteModal;
+    if (!ledgerId) return;
+    
     try {
-      setLoading(true);
-      await deleteLedgerEntry({ ledger_id });
+      setDeleteLoading(true);
+      await deleteLedgerEntry({ ledger_id: ledgerId });
+      setDeleteModal({ open: false, ledgerId: null });
       await fetchLedgers();
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to delete ledger entry";
       setError(message);
     } finally {
-      setLoading(false);
+      setDeleteLoading(false);
     }
   };
 
@@ -347,7 +357,7 @@ const Ledger = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <Button variant="secondary" size="icon" onClick={() => removeEntry(e?._id || e?.id)} aria-label="Delete ledger entry">
+                    <Button variant="secondary" size="icon" onClick={() => showDeleteConfirmation(e?._id || e?.id)} aria-label="Delete ledger entry">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -450,6 +460,31 @@ const Ledger = () => {
               </div>
             )}
           </RightPanel>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Ledger Entry</h3>
+              <p className="text-gray-600 mb-6">Are you sure you want to delete this ledger entry? This action cannot be undone.</p>
+              <div className="flex justify-end space-x-3">
+                <Button variant="secondary" onClick={() => setDeleteModal({ open: false, ledgerId: null })} disabled={deleteLoading}>
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={confirmDelete} disabled={deleteLoading} className="bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                  {deleteLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Image preview modal removed for ledger */}

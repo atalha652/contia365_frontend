@@ -22,7 +22,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/sign-in");
   };
 
   // Sidebar navigation items for app sections (renamed Actions -> Execution)

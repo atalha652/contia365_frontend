@@ -253,9 +253,9 @@ const Requests = () => {
             </Button>
 
             {/* More Options */}
-            <Button variant="secondary" size="icon">
+            {/* <Button variant="secondary" size="icon">
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
-            </Button>
+            </Button> */}
 
             <Button
               variant="secondary"
@@ -304,17 +304,61 @@ const Requests = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              // Adjust colSpan to reflect 9 visible columns
-              <TableRow>
-                <TableCell className="text-center" colSpan={9}>
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {filtered.map((voucher, index) => (
+            {loading ? (
+              // Skeleton loading rows
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i} isLast={i === 4}>
+                  {/* Checkbox skeleton */}
+                  <TableCell>
+                    <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Title skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Category skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-24 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Files skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-8 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Rejections skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-3 w-6 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Status badge skeleton */}
+                  <TableCell>
+                    <div className="h-6 w-24 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Created skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Preview thumbnails skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-bg-40 rounded-md animate-pulse" />
+                      <div className="w-10 h-10 bg-bg-40 rounded-md animate-pulse" />
+                      <div className="w-10 h-10 bg-bg-40 rounded-md animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Actions buttons skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-20 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-8 w-20 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <>
+                {filtered.map((voucher, index) => (
               <TableRow key={voucher.id} isLast={index === filtered.length - 1}>
                 <TableCell>
                   <input
@@ -400,14 +444,16 @@ const Requests = () => {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+                ))}
 
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell className="text-center" colSpan={10}>
-                  <span className="text-sm text-fg-60">No voucher requests yet.</span>
-                </TableCell>
-              </TableRow>
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell className="text-center" colSpan={9}>
+                      <span className="text-sm text-fg-60">No voucher requests yet.</span>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </>
             )}
           </TableBody>
         </Table>

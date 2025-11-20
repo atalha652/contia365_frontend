@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, FileText, CreditCard, BookOpen, Receipt, Users, ChevronDown, ChevronUp, LogOut, KeyRound, CheckSquare } from "lucide-react";
+import { BarChart3, FileText, CreditCard, BookOpen, Receipt, Users, ChevronDown, ChevronUp, LogOut, KeyRound, CheckSquare, Landmark } from "lucide-react";
 import Logo from "./Logo";
 
 const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
@@ -32,6 +32,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
+    { to: "/app/bank-transactions", label: "Bank Transactions", icon: Landmark },
   ];
 
   const isActive = (path) => location.pathname.startsWith(path);

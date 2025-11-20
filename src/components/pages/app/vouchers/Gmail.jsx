@@ -303,17 +303,46 @@ const VouchersGmail = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {gmailLoading && (
-            <TableRow>
-              <TableCell className="text-center" colSpan={7}>
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
-                </div>
-              </TableCell>
-            </TableRow>
-          )}
-
-          {!gmailLoading && gmailPurchases.map((email, index) => (
+          {gmailLoading ? (
+            // Skeleton loading rows
+            [...Array(5)].map((_, i) => (
+              <TableRow key={i} isLast={i === 4}>
+                {/* Checkbox skeleton */}
+                <TableCell>
+                  <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Sender skeleton */}
+                <TableCell>
+                  <div className="space-y-1">
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                    <div className="h-2 w-40 bg-bg-40 rounded animate-pulse" />
+                  </div>
+                </TableCell>
+                {/* Subject skeleton */}
+                <TableCell>
+                  <div className="h-3 w-48 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Amount skeleton */}
+                <TableCell>
+                  <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Order Number skeleton */}
+                <TableCell>
+                  <div className="h-3 w-24 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Type badge skeleton */}
+                <TableCell>
+                  <div className="h-6 w-20 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Date skeleton */}
+                <TableCell>
+                  <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <>
+              {gmailPurchases.map((email, index) => (
             <TableRow key={email.id || index} isLast={index === gmailPurchases.length - 1}>
               <TableCell>
                 <input
@@ -350,14 +379,16 @@ const VouchersGmail = () => {
                 <span className="text-sm text-fg-60 whitespace-nowrap">{formatEmailDate(email.date || email.internal_date)}</span>
               </TableCell>
             </TableRow>
-          ))}
+              ))}
 
-          {!gmailLoading && gmailPurchases.length === 0 && (
-            <TableRow>
-              <TableCell className="text-center" colSpan={7}>
-                <span className="text-sm text-fg-60">No Gmail purchases found.</span>
-              </TableCell>
-            </TableRow>
+              {gmailPurchases.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-center" colSpan={7}>
+                    <span className="text-sm text-fg-60">No Gmail purchases found.</span>
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
           )}
         </TableBody>
       </Table>

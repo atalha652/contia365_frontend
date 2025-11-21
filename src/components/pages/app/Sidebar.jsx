@@ -29,10 +29,11 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   const items = [
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
     { to: "/app/vouchers", label: "Vouchers", icon: FileText },
+     { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
-    { to: "/app/bank-transactions", label: "Bank Transactions", icon: Landmark },
+   
   ];
 
   const isActive = (path) => location.pathname.startsWith(path);

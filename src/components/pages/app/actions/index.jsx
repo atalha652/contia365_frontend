@@ -66,11 +66,17 @@ const Actions = () => {
     }));
   }, [vouchers]);
 
-  // Apply search and status filters
+  // Derive unique OCR statuses for filtering
+  const ocrStatusOptions = useMemo(() => {
+    const set = new Set(normalized.map((v) => String(v.ocr_status || "").toUpperCase()).filter(Boolean));
+    return ["All Status", ...Array.from(set).sort()];
+  }, [normalized]);
+
+  // Apply search and OCR status filters
   const filtered = normalized.filter((v) => {
     const search = searchQuery.toLowerCase();
     const matchesSearch = `${v.id} ${v.title} ${v.category}`.toLowerCase().includes(search);
-    const matchesStatus = statusFilter === "All Status" ? true : v.status?.toLowerCase() === statusFilter.toLowerCase();
+    const matchesStatus = statusFilter === "All Status" ? true : String(v.ocr_status || "").toUpperCase() === statusFilter.toUpperCase();
     return matchesSearch && matchesStatus;
   });
 
@@ -131,13 +137,13 @@ const Actions = () => {
             {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-fg-60" strokeWidth={1.5} />
-              <Input type="text" placeholder="Search items..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+              <Input type="text" placeholder="Search title..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
 
-            {/* Status Filter */}
+            {/* OCR Status Filter */}
             <div className="w-44">
               <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                {["All Status", "pending", "processed", "error"].map((option) => (
+                {ocrStatusOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
               </Select>
@@ -149,9 +155,9 @@ const Actions = () => {
             </Button>
 
             {/* More Options */}
-            <Button variant="secondary" size="icon">
+            {/* <Button variant="secondary" size="icon">
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
-            </Button>
+            </Button> */}
 
             {/* Bulk OCR button: runs OCR for selected voucher IDs only */}
             <Button
@@ -208,26 +214,59 @@ const Actions = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              <TableRow>
-                {/* Loading row matches 8 visible columns after removing Item */}
-                <TableCell className="text-center" colSpan={8}>
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
+            {loading ? (
+              // Skeleton loading rows
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i} isLast={i === 4}>
+                  {/* Checkbox skeleton */}
+                  <TableCell>
+                    <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Title skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Category skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-24 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Files skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-8 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* OCR badge skeleton */}
+                  <TableCell>
+                    <div className="h-6 w-20 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Created skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Preview thumbnails skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                      <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                      <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Actions button skeleton */}
+                  <TableCell>
+                    <div className="h-8 w-24 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <>
+                {filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell className="text-center" colSpan={8}>
+                      <div className="py-6 text-sm text-fg-60">No items found.</div>
+                    </TableCell>
+                  </TableRow>
+                )}
 
-            {filtered.length === 0 && !loading && (
-              <TableRow>
-                <TableCell className="text-center" colSpan={8}>
-                  <div className="py-6 text-sm text-fg-60">No items found.</div>
-                </TableCell>
-              </TableRow>
-            )}
-
-            {filtered.map((item, index) => (
+                {filtered.map((item, index) => (
               <TableRow key={item.id} isLast={index === filtered.length - 1}>
                 <TableCell>
                   <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} aria-label={`Select item ${item.id}`} />
@@ -289,7 +328,9 @@ const Actions = () => {
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
+                ))}
+              </>
+            )}
           </TableBody>
         </Table>
 

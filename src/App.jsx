@@ -28,6 +28,8 @@ import Requests from "./components/pages/app/Requests";
 import Ledger from "./components/pages/app/ledger";
 // Execution tab uses the existing Actions component implementation
 import Actions from "./components/pages/app/actions";
+import BankTransactions from "./components/pages/app/BankTransactions";
+import BankTransactionDetails from "./components/pages/app/BankTransactionDetails";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 
 function App() {
@@ -73,6 +75,8 @@ function App() {
               {/* Renamed route: /app/execution */}
               <Route path="execution" element={<Actions />} />
               <Route path="ledger" element={<Ledger />} />
+              <Route path="bank-transactions" element={<BankTransactions />} />
+              <Route path="bank-transactions/:accountId" element={<BankTransactionDetails />} />
               {/* Removed routes: bank-reconciliation, expences, payroll */}
             </Route>
           </Routes>

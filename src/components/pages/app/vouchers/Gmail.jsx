@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from "react";
-import { Search, Loader2 } from "lucide-react";
-import { Button, Badge, Input } from "../../../ui";
+import React, { useMemo, useState, useEffect } from "react";
+import { Search, Loader2, RotateCw } from "lucide-react";
+import { Button, Badge, Input, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../../../ui";
 import {
   checkGmailAuth,
   authorizeGmailUrl,
   getGmailPurchases,
   searchGmailEmails,
 } from "../../../../api/apiFunction/gmailServices";
+import { convertEmailsToToon, listUserVouchers } from "../../../../api/apiFunction/voucherServices";
 
 // This component manages Gmail: auth, search, and purchases listing
 const VouchersGmail = () => {
@@ -20,13 +21,14 @@ const VouchersGmail = () => {
   }, []);
   const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
-  // Simple English: States for Gmail auth, loading, error, list, paging, and search.
+  // Simple English: States for Gmail auth, loading, error, list, paging, search, and selection.
   const [gmailAuth, setGmailAuth] = useState({ success: false });
   const [gmailLoading, setGmailLoading] = useState(false);
   const [gmailError, setGmailError] = useState("");
   const [gmailPurchases, setGmailPurchases] = useState([]);
   const [gmailNextPageToken, setGmailNextPageToken] = useState(null);
   const [gmailSearch, setGmailSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
 
   // This checks Gmail auth status by calling backend
   const checkAuth = async () => {
@@ -34,9 +36,11 @@ const VouchersGmail = () => {
       setGmailError("");
       const info = await checkGmailAuth();
       setGmailAuth(info || { success: false });
+      return info?.success || false;
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to check Gmail auth";
       setGmailError(message);
+      return false;
     }
   };
 
@@ -58,6 +62,12 @@ const VouchersGmail = () => {
     }
   };
 
+  // Automatically check auth and load purchases when component mounts
+  useEffect(() => {
+    loadGmailPurchases();
+
+  }, [userId]);
+
   // This searches Gmail using a query string
   const runGmailSearch = async () => {
     if (!userId || !gmailSearch) return;
@@ -76,6 +86,22 @@ const VouchersGmail = () => {
     }
   };
 
+  // This toggles an email id selection
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  // This selects or deselects all visible emails
+  const allVisibleIds = gmailPurchases.map((email) => email.id);
+  const allSelectedOnPage = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id));
+  const toggleSelectAll = () => {
+    if (allSelectedOnPage) {
+      setSelectedIds((prev) => prev.filter((id) => !allVisibleIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allVisibleIds])));
+    }
+  };
+
   // This formats email dates into readable strings
   const formatEmailDate = (value) => {
     if (!value) return "";
@@ -86,6 +112,118 @@ const VouchersGmail = () => {
     const year = d.getFullYear();
     const time = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
     return `${mon}, ${day}, ${year} ${time}`;
+  };
+
+  // This converts selected emails to TOON vouchers
+  const [convertLoading, setConvertLoading] = useState(false);
+  const convertSelectedEmailsToToon = async () => {
+    if (!userId || selectedIds.length === 0) return;
+
+    try {
+      setConvertLoading(true);
+      setGmailError(""); // Clear any previous errors
+      // Filter the selected emails from the gmailPurchases array
+      const selectedEmails = gmailPurchases.filter(email => selectedIds.includes(email.id));
+
+      if (selectedEmails.length === 0) {
+        setGmailError("No selected emails found");
+        setConvertLoading(false);
+        return;
+      }
+
+      // Check if any of the selected emails have already been converted to vouchers
+      let vouchers = [];
+      try {
+        const voucherData = await listUserVouchers({ user_id: userId });
+        vouchers = voucherData.vouchers || [];
+      } catch (voucherErr) {
+        console.error("Error fetching vouchers:", voucherErr);
+        // Even if there's an error fetching vouchers, we'll allow conversion but log the error
+        console.warn("Proceeding with conversion despite voucher fetch error");
+      }
+      
+      // Debug logging
+      console.log("Selected emails for conversion:", selectedEmails);
+      console.log("Existing vouchers for user:", vouchers);
+      
+      // Create a set of email IDs that have already been converted to vouchers
+      // We check multiple possible fields that might contain the source email ID
+      const existingVoucherEmailIds = new Set();
+      if (Array.isArray(vouchers)) {
+        vouchers.forEach(voucher => {
+          // Check direct email ID fields
+          if (voucher.source_email_id) {
+            existingVoucherEmailIds.add(voucher.source_email_id);
+          }
+          if (voucher.email_id) {
+            existingVoucherEmailIds.add(voucher.email_id);
+          }
+          if (voucher.gmail_message_id) {
+            existingVoucherEmailIds.add(voucher.gmail_message_id);
+          }
+          
+          // Check the original_email.id field in files array
+          if (Array.isArray(voucher.files)) {
+            voucher.files.forEach(file => {
+              if (file.original_email && file.original_email.id) {
+                existingVoucherEmailIds.add(file.original_email.id);
+              }
+            });
+          }
+          
+          // Check if voucher title or description contains the email ID
+          if (voucher.title) {
+            selectedEmails.forEach(email => {
+              if (voucher.title.includes(email.id)) {
+                existingVoucherEmailIds.add(email.id);
+              }
+            });
+          }
+          
+          if (voucher.description) {
+            selectedEmails.forEach(email => {
+              if (voucher.description.includes(email.id)) {
+                existingVoucherEmailIds.add(email.id);
+              }
+            });
+          }
+        });
+      }
+
+      console.log("Existing voucher email IDs:", Array.from(existingVoucherEmailIds));
+      
+      const alreadyConvertedEmails = selectedEmails.filter(email => existingVoucherEmailIds.has(email.id));
+      
+      if (alreadyConvertedEmails.length > 0) {
+        const emailSubjects = alreadyConvertedEmails.map(email => `"${email.subject}"`).join(", ");
+        setGmailError(`The following emails have already been converted to TOON vouchers: ${emailSubjects}. Please select emails that haven't been converted yet.`);
+        setConvertLoading(false);
+        return;
+      }
+
+      // Call the convertEmailsToToon API function
+      const response = await convertEmailsToToon({
+        user_id: userId,
+        emails: selectedEmails
+      });
+
+      // Console log the response
+      console.log("Convert Emails to TOON Response:", response);
+
+      // Show success message or handle response as needed
+      // For now, we'll just show a success message in the error field
+      setGmailError(`Successfully converted ${selectedEmails.length} emails to TOON`);
+
+      // Optionally, you could refresh the list or clear selections
+      // setSelectedIds([]);
+      // loadGmailPurchases();
+    } catch (err) {
+      const message = err?.response?.data?.detail || err.message || "Failed to convert emails to TOON";
+      console.error("Convert Emails to TOON Error:", err);
+      setGmailError(message);
+    } finally {
+      setConvertLoading(false);
+    }
   };
 
   // This renders the Gmail UI: auth buttons, search, list, and paging
@@ -110,7 +248,19 @@ const VouchersGmail = () => {
               }
             }}
           >Authorize Gmail</Button>
-          <Button variant="secondary" onClick={() => loadGmailPurchases()} disabled={!gmailAuth?.success}>Load Purchases</Button>
+          <Button variant="secondary" onClick={loadGmailPurchases}>
+            <RotateCw className="w-4 h-4 mr-2" strokeWidth={1.5} />
+            Refresh
+          </Button>
+          {/* Action Buttons */}
+          {selectedIds.length > 0 && (
+            <div>
+              <Button variant="primary" onClick={convertSelectedEmailsToToon} disabled={convertLoading}>
+                {convertLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                Convert {selectedIds.length} Selected Email{selectedIds.length > 1 ? 's' : ''} to TOON
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -130,46 +280,118 @@ const VouchersGmail = () => {
         <Button variant="secondary" onClick={runGmailSearch} disabled={!gmailAuth?.success || !gmailSearch}>Search</Button>
       </div>
 
-      {/* Purchases List */}
-      <div className="space-y-2">
-        {gmailLoading && (
-          <div className="border border-bd-50 bg-bg-50 rounded-xl p-4">
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm text-fg-60">Loading Gmail purchases…</span>
-            </div>
-          </div>
-        )}
 
-        {!gmailLoading && gmailPurchases.map((email, idx) => (
-          <div key={email.id || idx} className="border border-bd-50 bg-bg-50 rounded-xl p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
-                {/* Compact avatar */}
-                <div className="w-8 h-8 rounded-lg bg-bg-70 flex items-center justify-center text-fg-50 text-xs">
-                  {(email.purchase_type || "?").slice(0, 1).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-fg-40 truncate max-w-[540px]">{email.subject || "(No subject)"}</span>
-                    <Badge variant="info">{(email.purchase_type || "unknown").toUpperCase()}</Badge>
+      {/* Purchases Table */}
+      <Table>
+        <TableHeader>
+          <TableRow isHeader={true}>
+            <TableHead className="w-10" isFirst={true}>
+              <input
+                type="checkbox"
+                className="form-checkbox h-4 w-4 rounded border-bd-50"
+                checked={allSelectedOnPage}
+                onChange={toggleSelectAll}
+                aria-label="Select all"
+              />
+            </TableHead>
+            <TableHead className="whitespace-nowrap">Sender</TableHead>
+            <TableHead className="whitespace-nowrap">Subject</TableHead>
+            <TableHead className="whitespace-nowrap">Amount</TableHead>
+            <TableHead className="whitespace-nowrap">Order Number</TableHead>
+            <TableHead className="whitespace-nowrap">Type</TableHead>
+            <TableHead className="whitespace-nowrap">Date</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {gmailLoading ? (
+            // Skeleton loading rows
+            [...Array(5)].map((_, i) => (
+              <TableRow key={i} isLast={i === 4}>
+                {/* Checkbox skeleton */}
+                <TableCell>
+                  <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Sender skeleton */}
+                <TableCell>
+                  <div className="space-y-1">
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                    <div className="h-2 w-40 bg-bg-40 rounded animate-pulse" />
                   </div>
-                  <p className="text-xs text-fg-60 mt-1">
-                    {email.merchant || email.sender_name || email.sender_email || "Unknown merchant"}
-                    {typeof email.amount === "number" && (
-                      <> • {email.currency || ""} {email.amount}</>
-                    )}
-                    {email.order_number && (
-                      <> • Order: {email.order_number}</>
-                    )}
-                  </p>
+                </TableCell>
+                {/* Subject skeleton */}
+                <TableCell>
+                  <div className="h-3 w-48 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Amount skeleton */}
+                <TableCell>
+                  <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Order Number skeleton */}
+                <TableCell>
+                  <div className="h-3 w-24 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Type badge skeleton */}
+                <TableCell>
+                  <div className="h-6 w-20 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Date skeleton */}
+                <TableCell>
+                  <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <>
+              {gmailPurchases.map((email, index) => (
+            <TableRow key={email.id || index} isLast={index === gmailPurchases.length - 1}>
+              <TableCell>
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 rounded border-bd-50"
+                  checked={selectedIds.includes(email.id)}
+                  onChange={() => toggleSelect(email.id)}
+                  aria-label={`Select email ${email.id}`}
+                />
+              </TableCell>
+              <TableCell>
+                <div className="text-sm text-fg-60 whitespace-nowrap">
+                  <div className="font-medium text-fg-40">{email.sender_name || "Unknown Sender"}</div>
+                  <div className="text-xs">{email.sender_email || ""}</div>
                 </div>
-              </div>
-              <div className="text-xs text-fg-60 whitespace-nowrap">{formatEmailDate(email.date || email.internal_date)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{email.subject || "(No subject)"}</span>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-fg-60 whitespace-nowrap">
+                  {typeof email.amount === "number" ? `${email.currency || ""} ${email.amount}` : "-"}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-fg-60 whitespace-nowrap">
+                  {email.order_number || "-"}
+                </span>
+              </TableCell>
+              <TableCell>
+                <Badge variant="info">{(email.purchase_type || "unknown").toUpperCase()}</Badge>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-fg-60 whitespace-nowrap">{formatEmailDate(email.date || email.internal_date)}</span>
+              </TableCell>
+            </TableRow>
+              ))}
+
+              {gmailPurchases.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-center" colSpan={7}>
+                    <span className="text-sm text-fg-60">No Gmail purchases found.</span>
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
+          )}
+        </TableBody>
+      </Table>
 
       {/* Pagination actions */}
       <div className="flex items-center justify-between mt-3">

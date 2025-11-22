@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { BarChart3, FileText, CreditCard, BookOpen, Receipt, Users, ChevronDown, ChevronUp, LogOut, KeyRound, CheckSquare } from "lucide-react";
+import { BarChart3, FileText, CreditCard, BookOpen, Receipt, Users, ChevronDown, ChevronUp, LogOut, KeyRound, CheckSquare, Landmark } from "lucide-react";
 import Logo from "./Logo";
 
 const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
@@ -22,16 +22,18 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/sign-in");
   };
 
   // Sidebar navigation items for app sections (renamed Actions -> Execution)
   const items = [
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
     { to: "/app/vouchers", label: "Vouchers", icon: FileText },
+     { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
+   
   ];
 
   const isActive = (path) => location.pathname.startsWith(path);

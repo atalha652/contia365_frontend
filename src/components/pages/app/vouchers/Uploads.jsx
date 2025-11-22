@@ -174,7 +174,7 @@ const VouchersUploads = () => {
           {/* Search Bar */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-fg-60" strokeWidth={1.5} />
-            <Input type="text" placeholder="Search vouchers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+            <Input type="text" placeholder="Search title..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
           </div>
 
           {/* Status Filter */}
@@ -192,9 +192,9 @@ const VouchersUploads = () => {
           </Button>
 
           {/* More Options */}
-          <Button variant="secondary" size="icon">
+          {/* <Button variant="secondary" size="icon">
             <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
-          </Button>
+          </Button> */}
 
           {/* Send for approval */}
           <Button variant="primary" onClick={moveSelectedToRequests} disabled={selectedIds.length === 0 || sending} className="whitespace-nowrap">
@@ -234,16 +234,54 @@ const VouchersUploads = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading && (
-            <TableRow>
-              <TableCell className="text-center" colSpan={8}>
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
-                </div>
-              </TableCell>
-            </TableRow>
-          )}
-          {filtered.map((voucher, index) => (
+          {loading ? (
+            // Skeleton loading rows
+            [...Array(5)].map((_, i) => (
+              <TableRow key={i} isLast={i === 4}>
+                {/* Checkbox skeleton */}
+                <TableCell>
+                  <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Title skeleton */}
+                <TableCell>
+                  <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Category skeleton */}
+                <TableCell>
+                  <div className="h-3 w-24 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Files skeleton */}
+                <TableCell>
+                  <div className="h-3 w-8 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Status badge skeleton */}
+                <TableCell>
+                  <div className="h-6 w-24 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Rejection count skeleton */}
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                    <div className="h-3 w-6 bg-bg-40 rounded animate-pulse" />
+                  </div>
+                </TableCell>
+                {/* Created skeleton */}
+                <TableCell>
+                  <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Preview thumbnails skeleton */}
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                    <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                    <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <>
+              {filtered.map((voucher, index) => (
             <TableRow key={voucher.id} isLast={index === filtered.length - 1}>
               <TableCell>
                 <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={selectedIds.includes(voucher.id)} onChange={() => toggleSelect(voucher.id)} aria-label={`Select voucher ${voucher.id}`} />
@@ -284,14 +322,16 @@ const VouchersUploads = () => {
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+              ))}
 
-          {filtered.length === 0 && !loading && (
-            <TableRow>
-              <TableCell className="text-center" colSpan={8}>
-                <span className="text-sm text-fg-60">No vouchers match your filters.</span>
-              </TableCell>
-            </TableRow>
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-center" colSpan={8}>
+                    <span className="text-sm text-fg-60">No vouchers match your filters.</span>
+                  </TableCell>
+                </TableRow>
+              )}
+            </>
           )}
         </TableBody>
       </Table>

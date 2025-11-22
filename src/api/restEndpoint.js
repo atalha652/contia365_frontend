@@ -26,3 +26,9 @@ export const DASHBOARD_URL = `${SERVER_PATH}/api/accounting/dashboard`;
 // Gmail End Points
 // Base URL for Gmail APIs (auth, purchases, search, filters, summary)
 export const GMAIL_URL = `${SERVER_PATH}/api/gmail`;
+
+// Bank End Points
+// Base URL for bank operations (accounts, transactions, import, matching)
+export const BANK_URL = `${SERVER_PATH}/api/bank`;
+
+

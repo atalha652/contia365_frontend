@@ -211,10 +211,33 @@ export const getVoucherOCRJobStatus = async ({ job_id }) => {
     if (!job_id) throw new Error("Missing job_id");
     const response = await httpGet({
       url: `${SERVER_PATH}/api/accounting/ocr/job/${job_id}`,
-    });
+    }); data
     return response?.data;
   } catch (err) {
     console.error("Get voucher OCR job status error:", err);
     throw err;
   }
 };
+
+// Convert Gmail email data to TOON and store as vouchers
+export const convertEmailsToToon = async ({ user_id, emails }) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id");
+    if (!emails || !Array.isArray(emails) || emails.length === 0)
+      throw new Error("Emails list is required and must be a non-empty array");
+
+    const payload = { user_id, emails };
+
+    const response = await httpPost({
+      url: `${SERVER_PATH}/api/accounting/voucher/gmail-data`,
+      payload,
+    });
+
+    return response?.data;
+  } catch (err) {
+    console.error("Convert Emails To TOON error:", err);
+    throw err;
+  }
+};
+
+

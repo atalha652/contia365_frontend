@@ -49,6 +49,8 @@ const Ledger = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSection, setPanelSection] = useState(null);
   const [panelEntry, setPanelEntry] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, ledgerId: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Removed image preview functionality from ledger as requested
 
@@ -82,18 +84,26 @@ const Ledger = () => {
     }
   };
 
+  // Show delete confirmation modal
+  const showDeleteConfirmation = (ledger_id) => {
+    setDeleteModal({ open: true, ledgerId: ledger_id });
+  };
+
   // This function deletes a single ledger entry and refreshes the table
-  const removeEntry = async (ledger_id) => {
-    if (!ledger_id) return;
+  const confirmDelete = async () => {
+    const { ledgerId } = deleteModal;
+    if (!ledgerId) return;
+    
     try {
-      setLoading(true);
-      await deleteLedgerEntry({ ledger_id });
+      setDeleteLoading(true);
+      await deleteLedgerEntry({ ledger_id: ledgerId });
+      setDeleteModal({ open: false, ledgerId: null });
       await fetchLedgers();
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to delete ledger entry";
       setError(message);
     } finally {
-      setLoading(false);
+      setDeleteLoading(false);
     }
   };
 
@@ -103,13 +113,13 @@ const Ledger = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Derive unique statuses for filtering (processing_status if present)
+  // Derive unique transaction types for filtering (credit/debit)
   const statusOptions = useMemo(() => {
-    const set = new Set(entries.map((e) => (e?.processing_status || "")).filter(Boolean));
+    const set = new Set(entries.map((e) => String(e?.invoice_data?.transaction_type || "").toUpperCase()).filter(Boolean));
     return ["All Status", ...Array.from(set).sort()];
   }, [entries]);
 
-  // Filter entries based on search and selected status
+  // Filter entries based on search and selected transaction type
   const filtered = useMemo(() => {
     let list = entries;
     const q = searchQuery.trim().toLowerCase();
@@ -126,7 +136,7 @@ const Ledger = () => {
       });
     }
     if (statusFilter !== "All Status") {
-      list = list.filter((e) => String(e?.processing_status || "").toLowerCase() === String(statusFilter).toLowerCase());
+      list = list.filter((e) => String(e?.invoice_data?.transaction_type || "").toUpperCase() === String(statusFilter).toUpperCase());
     }
     return list;
   }, [entries, searchQuery, statusFilter]);
@@ -166,7 +176,7 @@ const Ledger = () => {
             {/* Search Bar for supplier/customer/invoice number */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-fg-60" strokeWidth={1.5} />
-              <Input type="text" placeholder="Search ledgers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
+              <Input type="text" placeholder="Search Suppliers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
 
             {/* Status Filter using the themed Select */}
@@ -184,12 +194,12 @@ const Ledger = () => {
             </Button>
 
             {/* More Options button (placeholder for future) */}
-            <Button variant="secondary" size="icon">
+            {/* <Button variant="secondary" size="icon">
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
-            </Button>
+            </Button> */}
 
             {/* Download Ledger CSV using current filtered rows */}
-            <Button variant="primary" className="whitespace-nowrap" onClick={() => {
+            <Button variant="primary" className="whitespace-nowrap flex items-center gap-2" onClick={() => {
               // Build CSV from filtered entries
               const header = [
                 "Invoice #",
@@ -272,18 +282,71 @@ const Ledger = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              <TableRow>
-                {/* Adjusted colSpan to match 11 visible columns */}
-                <TableCell className="text-center" colSpan={11}>
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-5 h-5 animate-spin text-fg-60" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-
-            {filtered.map((e, index) => (
+            {loading ? (
+              // Skeleton loading rows
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i} isLast={i === 4}>
+                  {/* Invoice # skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Supplier skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Customer skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-3 w-28 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Items skeleton */}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                      <div className="h-3 w-8 bg-bg-40 rounded animate-pulse" />
+                    </div>
+                  </TableCell>
+                  {/* Total skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* VAT % skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* VAT Amount skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Total with Tax skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Type badge skeleton */}
+                  <TableCell>
+                    <div className="h-6 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Created skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Actions skeleton */}
+                  <TableCell>
+                    <div className="w-8 h-8 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <>
+                {filtered.map((e, index) => (
               <TableRow key={e?._id || e?.id || index} isLast={index === filtered.length - 1}>
                 {/* Invoice number with info icon placed on the left */}
                 <TableCell>
@@ -347,7 +410,7 @@ const Ledger = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <Button variant="secondary" size="icon" onClick={() => removeEntry(e?._id || e?.id)} aria-label="Delete ledger entry">
+                    <Button variant="secondary" size="icon" onClick={() => showDeleteConfirmation(e?._id || e?.id)} aria-label="Delete ledger entry">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -355,7 +418,7 @@ const Ledger = () => {
               </TableRow>
             ))}
 
-            {filtered.length === 0 && !loading && (
+            {filtered.length === 0 && (
               <TableRow>
                 {/* Adjusted colSpan to 11 to match headers */}
                 <TableCell className="text-center" colSpan={11}>
@@ -363,7 +426,9 @@ const Ledger = () => {
                 </TableCell>
               </TableRow>
             )}
-          </TableBody>
+          </>
+        )}
+      </TableBody>
         </Table>
 
         {/* Totals row displayed separately below the table */}
@@ -450,6 +515,31 @@ const Ledger = () => {
               </div>
             )}
           </RightPanel>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Ledger Entry</h3>
+              <p className="text-gray-600 mb-6">Are you sure you want to delete this ledger entry? This action cannot be undone.</p>
+              <div className="flex justify-end space-x-3">
+                <Button variant="secondary" onClick={() => setDeleteModal({ open: false, ledgerId: null })} disabled={deleteLoading}>
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={confirmDelete} disabled={deleteLoading} className="bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                  {deleteLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Image preview modal removed for ledger */}

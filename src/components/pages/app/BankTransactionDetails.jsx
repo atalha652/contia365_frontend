@@ -185,23 +185,31 @@ const BankTransactionDetails = () => {
     setImportFormat("pdf");
   };
 
+  // Filter out processed transactions from selected IDs
+  const selectableIds = React.useMemo(() => {
+    return selectedIds.filter(id => {
+      const txn = transactions.find(t => (t._id || t.id) === id);
+      return txn && txn.status?.toLowerCase() !== "processed";
+    });
+  }, [selectedIds, transactions]);
+
   // Send selected transactions to ledger
   const handleSendToLedger = async () => {
-    if (selectedIds.length === 0) {
-      toast.error("Please select at least one transaction");
+    if (selectableIds.length === 0) {
+      toast.error("Please select at least one non-processed transaction");
       return;
     }
 
     try {
       setSendingToLedger(true);
       
-      // Call API to send transactions to ledger
+      // Call API to send transactions to ledger (only non-processed)
       const result = await sendTransactionsToLedger({ 
-        transaction_ids: selectedIds 
+        transaction_ids: selectableIds 
       });
 
       // Show success message
-      toast.success(`Successfully sent ${selectedIds.length} transaction(s) to ledger!`);
+      toast.success(`Successfully sent ${selectableIds.length} transaction(s) to ledger!`);
       
       // Clear selection and refresh transactions
       setSelectedIds([]);
@@ -347,11 +355,11 @@ const BankTransactionDetails = () => {
             <Button 
               variant="primary" 
               onClick={handleSendToLedger} 
-              disabled={selectedIds.length === 0 || sendingToLedger}
+              disabled={selectableIds.length === 0 || sendingToLedger}
               className="whitespace-nowrap flex items-center gap-2"
             >
               <Download className="w-4 h-4" strokeWidth={1.5} />
-              <span>{sendingToLedger ? "Sending..." : `Send to Ledger (${selectedIds.length})`}</span>
+              <span>{sendingToLedger ? "Sending..." : `Send to Ledger (${selectableIds.length})`}</span>
             </Button>
 
             {/* Export CSV */}
@@ -417,6 +425,7 @@ const BankTransactionDetails = () => {
                   const debitAmount = isDebit ? Math.abs(txn.amount || txn.debit || 0) : 0;
                   const creditAmount = isCredit ? (txn.amount || txn.credit || 0) : 0;
                   const txnId = txn._id || txn.id;
+                  const isProcessed = txn.status?.toLowerCase() === "processed";
                   
                   return (
                     <TableRow key={txnId} isLast={index === filtered.length - 1}>
@@ -426,7 +435,9 @@ const BankTransactionDetails = () => {
                           className="form-checkbox h-4 w-4 rounded border-bd-50"
                           checked={selectedIds.includes(txnId)}
                           onChange={() => toggleSelect(txnId)}
+                          disabled={isProcessed}
                           aria-label={`Select transaction ${txnId}`}
+                          title={isProcessed ? "Transaction already processed" : ""}
                         />
                       </TableCell>
                       <TableCell>

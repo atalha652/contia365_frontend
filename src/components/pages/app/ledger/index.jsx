@@ -1,12 +1,13 @@
 // This page shows real ledger data from the API in a table, similar to Vouchers
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, Filter, MoreHorizontal, Loader2, Trash2, Download, Info } from "lucide-react";
+import { Search, Filter, MoreHorizontal, Loader2, Trash2, Download, Info, FileText, X } from "lucide-react";
 // Import UI components and image preview modal for thumbnails
 // Import UI components for table rendering
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select } from "../../../ui";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
 import RightPanel from "../common/right-panel";
 // Import ledger API services for listing and deleting entries
-import { listUserLedgers, deleteLedgerEntry } from "../../../../api/apiFunction/ledgerServices";
+import { listUserLedgers, deleteLedgerEntry, exportUserLedgersPDF } from "../../../../api/apiFunction/ledgerServices";
 
 // This small helper formats numbers as currency for totals
 const formatCurrency = (value) => {
@@ -51,6 +52,26 @@ const Ledger = () => {
   const [panelEntry, setPanelEntry] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ open: false, ledgerId: null });
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [pdfModal, setPdfModal] = useState({ open: false, pdfBlob: null });
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // Create PDF URL only when blob is available
+  const pdfUrl = useMemo(() => {
+    if (pdfModal.pdfBlob && pdfModal.pdfBlob instanceof Blob) {
+      return URL.createObjectURL(pdfModal.pdfBlob);
+    }
+    return null;
+  }, [pdfModal.pdfBlob]);
+
+  // Cleanup PDF URL when modal closes
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
 
   // Removed image preview functionality from ledger as requested
 
@@ -107,6 +128,39 @@ const Ledger = () => {
     }
   };
 
+  // This function exports selected ledgers as PDF
+  const handleExportPDF = async () => {
+    if (!userId || selectedIds.length === 0) return;
+    
+    try {
+      setPdfLoading(true);
+      setError("");
+      const pdfBlob = await exportUserLedgersPDF({ 
+        user_id: userId,
+        ids: selectedIds
+      });
+      setPdfModal({ open: true, pdfBlob });
+      // Clear selections after successful export
+      setSelectedIds([]);
+    } catch (err) {
+      const message = err?.response?.data?.detail || err.message || "Failed to export PDF";
+      setError(message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Download the PDF from the modal
+  const downloadPDF = () => {
+    if (!pdfUrl) return;
+    const a = document.createElement("a");
+    a.href = pdfUrl;
+    a.download = `ledgers_${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   // Load entries on mount and whenever the user changes
   useEffect(() => {
     fetchLedgers();
@@ -153,6 +207,22 @@ const Ledger = () => {
     return sum;
   }, [filtered]);
 
+  // Handle checkbox selection
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const allVisibleIds = filtered.map((e) => e._id || e.id);
+  const allSelectedOnPage = allVisibleIds.length > 0 && allVisibleIds.every((id) => selectedIds.includes(id));
+  
+  const toggleSelectAll = () => {
+    if (allSelectedOnPage) {
+      setSelectedIds((prev) => prev.filter((id) => !allVisibleIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allVisibleIds])));
+    }
+  };
+
   // Render the ledger table layout with header, filters, and actions
   return (
     <div className="flex-1 bg-bg-70">
@@ -165,6 +235,26 @@ const Ledger = () => {
               <p className="text-sm text-fg-60 mt-1">All entries produced by OCR and processing.</p>
             </div>
             <div className="flex items-center space-x-3">
+              {selectedIds.length > 0 && (
+                <Button 
+                  variant="primary" 
+                  onClick={handleExportPDF}
+                  disabled={pdfLoading}
+                  className="flex items-center gap-2"
+                >
+                  {pdfLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Export PDF ({selectedIds.length})
+                    </>
+                  )}
+                </Button>
+              )}
               <Button variant="secondary" onClick={fetchLedgers}>Refresh</Button>
             </div>
           </div>
@@ -265,6 +355,15 @@ const Ledger = () => {
         <Table>
           <TableHeader>
             <TableRow isHeader={true}>
+              <TableHead className="w-10" isFirst={true}>
+                <input
+                  type="checkbox"
+                  className="form-checkbox h-4 w-4 rounded border-bd-50"
+                  checked={allSelectedOnPage}
+                  onChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               {/* Put Invoice # first and remove internal ids */}
               <TableHead className="whitespace-nowrap">Invoice #</TableHead>
               <TableHead className="whitespace-nowrap">Supplier</TableHead>
@@ -286,6 +385,10 @@ const Ledger = () => {
               // Skeleton loading rows
               [...Array(5)].map((_, i) => (
                 <TableRow key={i} isLast={i === 4}>
+                  {/* Checkbox skeleton */}
+                  <TableCell>
+                    <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
                   {/* Invoice # skeleton */}
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -346,10 +449,23 @@ const Ledger = () => {
               ))
             ) : (
               <>
-                {filtered.map((e, index) => (
-              <TableRow key={e?._id || e?.id || index} isLast={index === filtered.length - 1}>
-                {/* Invoice number with info icon placed on the left */}
-                <TableCell>
+                {filtered.map((e, index) => {
+                  const entryId = e._id || e.id;
+                  
+                  return (
+                    <TableRow key={entryId || index} isLast={index === filtered.length - 1}>
+                      {/* Checkbox */}
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-4 w-4 rounded border-bd-50"
+                          checked={selectedIds.includes(entryId)}
+                          onChange={() => toggleSelect(entryId)}
+                          aria-label={`Select ledger entry ${entryId}`}
+                        />
+                      </TableCell>
+                      {/* Invoice number with info icon placed on the left */}
+                      <TableCell>
                   <div className="flex items-center gap-2">
                     <button title="Invoice details" className="text-fg-60 hover:text-fg-40" onClick={() => openPanel("invoice", e)}>
                       <Info className="w-4 h-4" />
@@ -416,12 +532,13 @@ const Ledger = () => {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+                  );
+                })}
 
             {filtered.length === 0 && (
               <TableRow>
-                {/* Adjusted colSpan to 11 to match headers */}
-                <TableCell className="text-center" colSpan={11}>
+                {/* Adjusted colSpan to 12 to match headers (added checkbox column) */}
+                <TableCell className="text-center" colSpan={12}>
                   <span className="text-sm text-fg-60">No ledger entries match your filters.</span>
                 </TableCell>
               </TableRow>
@@ -518,29 +635,66 @@ const Ledger = () => {
         )}
 
         {/* Delete Confirmation Modal */}
-        {deleteModal.open && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Ledger Entry</h3>
-              <p className="text-gray-600 mb-6">Are you sure you want to delete this ledger entry? This action cannot be undone.</p>
-              <div className="flex justify-end space-x-3">
-                <Button variant="secondary" onClick={() => setDeleteModal({ open: false, ledgerId: null })} disabled={deleteLoading}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={confirmDelete} disabled={deleteLoading} className="bg-red-600 hover:bg-red-700 disabled:opacity-50">
-                  {deleteLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Deleting...
-                    </>
-                  ) : (
-                    "Delete"
-                  )}
-                </Button>
-              </div>
+        <Modal open={deleteModal.open} onClose={() => setDeleteModal({ open: false, ledgerId: null })}>
+          <ModalHeader 
+            title="Delete Ledger Entry"
+            action={
+              <Button variant="ghost" size="icon" onClick={() => setDeleteModal({ open: false, ledgerId: null })}>
+                <X className="w-4 h-4" />
+              </Button>
+            }
+          />
+          <ModalBody>
+            <p className="text-sm text-fg-60">Are you sure you want to delete this ledger entry? This action cannot be undone.</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setDeleteModal({ open: false, ledgerId: null })} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={confirmDelete} disabled={deleteLoading} className="bg-red-600 hover:bg-red-700 disabled:opacity-50">
+              {deleteLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* PDF Preview Modal */}
+        <Modal open={pdfModal.open && !!pdfUrl} onClose={() => setPdfModal({ open: false, pdfBlob: null })}>
+          <ModalHeader 
+            title="Ledger PDF Preview"
+            action={
+              <Button variant="ghost" size="icon" onClick={() => setPdfModal({ open: false, pdfBlob: null })}>
+                <X className="w-4 h-4" />
+              </Button>
+            }
+          />
+          <ModalBody className="p-0">
+            <div className="w-full h-[70vh] border-t border-b border-bd-50">
+              {pdfUrl && (
+                <iframe
+                  src={pdfUrl}
+                  className="w-full h-full"
+                  title="PDF Preview"
+                />
+              )}
             </div>
-          </div>
-        )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="secondary" onClick={() => setPdfModal({ open: false, pdfBlob: null })}>
+              Close
+            </Button>
+            <Button variant="primary" onClick={downloadPDF} className="flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Download PDF
+            </Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Image preview modal removed for ledger */}
       </div>

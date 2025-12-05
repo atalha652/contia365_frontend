@@ -13,7 +13,7 @@ import { Info, Loader2, Trash2 } from "lucide-react";
 import { listUserLedgers } from "../../../../api/apiFunction/ledgerServices";
 import RightPanel from "../common/right-panel";
 
-const MonthDataTable = ({ month, semester }) => {
+const MonthDataTable = ({ month, semester, year }) => {
     // Read current user from localStorage for API calls
     const user = useMemo(() => {
         try {
@@ -106,13 +106,13 @@ const MonthDataTable = ({ month, semester }) => {
         }
     };
 
-    // Load entries on mount and when month/semester changes
+    // Load entries on mount and when month/semester/year changes
     useEffect(() => {
         fetchLedgers();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId, month, semester]);
+    }, [userId, month, semester, year]);
 
-    // Filter entries by selected month
+    // Filter entries by selected month and year
     const filteredData = useMemo(() => {
         const monthNum = getMonthNumber(month);
         if (monthNum === undefined) return [];
@@ -120,9 +120,9 @@ const MonthDataTable = ({ month, semester }) => {
         return entries.filter((entry) => {
             const createdDate = new Date(entry?.created_at);
             if (isNaN(createdDate.getTime())) return false;
-            return createdDate.getMonth() === monthNum;
+            return createdDate.getMonth() === monthNum && createdDate.getFullYear() === year;
         });
-    }, [entries, month]);
+    }, [entries, month, year]);
 
     // Calculate totals
     const totals = useMemo(() => {

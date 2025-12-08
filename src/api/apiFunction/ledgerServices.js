@@ -1,5 +1,5 @@
 import { LEDGERS_URL, SERVER_PATH } from "../restEndpoint";
-import { httpGet, httpPut, httpDelete } from "../../utils/httpMethods";
+import { httpGet, httpPut, httpDelete, httpGetBlob } from "../../utils/httpMethods";
 
 // This service fetches all ledger entries for a user and normalizes the response
 export const getUserLedgers = async ({ user_id }) => {
@@ -57,6 +57,33 @@ export const deleteLedgerEntry = async ({ ledger_id }) => {
     return response?.data;
   } catch (err) {
     console.error("Delete ledger entry error:", err);
+    throw err;
+  }
+};
+
+// This service exports ledger entries as PDF for a user
+export const exportUserLedgersPDF = async ({ user_id, from_date, to_date, entry_type, ids }) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id");
+    
+    // Build query parameters object
+    const params = {};
+    if (from_date) params.from_date = from_date;
+    if (to_date) params.to_date = to_date;
+    if (entry_type) params.entry_type = entry_type;
+    if (ids && Array.isArray(ids) && ids.length > 0) {
+      params.ids = ids.join(",");
+    }
+    
+    const url = `${LEDGERS_URL}/user/${user_id}/export-pdf`;
+    
+    const response = await httpGetBlob({ 
+      url,
+      params
+    });
+    return response?.data;
+  } catch (err) {
+    console.error("Export user ledgers PDF error:", err);
     throw err;
   }
 };

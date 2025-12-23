@@ -13,6 +13,7 @@ import {
   KeyRound,
   CheckSquare,
   Landmark,
+  Building2,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -49,6 +50,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
+    { to: "/app/modelos", label: "Modelos", icon: Building2 },
     { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
   ];
 

@@ -107,3 +107,14 @@
 .dark .model-dropdown-option:focus {
   background-color: var(--bg-30);
 }
+
+/* Hidden scrollbar - keeps functionality but hides the scrollbar */
+.hidden-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  overflow-y: auto;
+}
+
+.hidden-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, and Opera */
+}

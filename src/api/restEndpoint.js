@@ -31,4 +31,8 @@ export const GMAIL_URL = `${SERVER_PATH}/api/gmail`;
 // Base URL for bank operations (accounts, transactions, import, matching)
 export const BANK_URL = `${SERVER_PATH}/api/bank`;
 
+// Modelos End Points
+// Base URL for Spanish tax form operations (search, create, update)
+export const MODELOS_URL = `${SERVER_PATH}/api/modelos`;
+
 

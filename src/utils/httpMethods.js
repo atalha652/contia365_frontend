@@ -100,7 +100,7 @@ export const httpPost = async ({ url, payload = null }) => {
 };
 
 
-export const httpPut = async ({ url, payload }) => {
+export const httpPut = async ({ url, payload = null, params = null }) => {
   const authToken = getAuthToken();
   if (!authToken) {
     window.location.href = window.location.origin + '/sign-in';
@@ -110,6 +110,7 @@ export const httpPut = async ({ url, payload }) => {
   try {
     const response = await axios.put(url, payload, {
       headers: { Authorization: 'Bearer ' + authToken },
+      params: params,
     });
     return response;
   } catch (e) {

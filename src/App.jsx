@@ -31,6 +31,8 @@ import Actions from "./components/pages/app/actions";
 import BankTransactions from "./components/pages/app/BankTransactions";
 import BankTransactionDetails from "./components/pages/app/BankTransactionDetails";
 import TaxFiling from "./components/pages/app/taxFilling";
+import Modelos from "./components/pages/app/modelos";
+import Modelo600New from "./components/pages/app/modelos/Modelo600New";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 
 function App() {
@@ -76,6 +78,8 @@ function App() {
               {/* Renamed route: /app/execution */}
               <Route path="execution" element={<Actions />} />
               <Route path="ledger" element={<Ledger />} />
+              <Route path="modelos" element={<Modelos />} />
+              <Route path="modelos/modelo-600" element={<Modelo600New />} />
               <Route path="tax-filings" element={<TaxFiling />} />
               <Route path="bank-transactions" element={<BankTransactions />} />
               <Route path="bank-transactions/:accountId" element={<BankTransactionDetails />} />

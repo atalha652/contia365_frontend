@@ -87,3 +87,27 @@ export const exportUserLedgersPDF = async ({ user_id, from_date, to_date, entry_
     throw err;
   }
 };
+
+// This service updates the modelo for a specific ledger entry
+export const updateLedgerEntryModelo = async ({ entry_id, modelo_id, user_id }) => {
+  try {
+    if (!entry_id) throw new Error("Missing entry_id");
+    if (!modelo_id) throw new Error("Missing modelo_id");
+    if (!user_id) throw new Error("Missing user_id");
+    
+    // Build query parameters
+    const params = {
+      modelo_id,
+      user_id,
+    };
+    
+    const response = await httpPut({
+      url: `${LEDGERS_URL}/${entry_id}/modelo`,
+      params,
+    });
+    return response?.data;
+  } catch (err) {
+    console.error("Update ledger entry modelo error:", err);
+    throw err;
+  }
+};

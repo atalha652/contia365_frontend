@@ -189,6 +189,8 @@ const AppPage = () => {
     else if (path.includes("/app/execution")) label = "Execution";
     else if (path.includes("/app/bank-reconciliation")) label = "Bank Reconciliation";
     else if (path.includes("/app/ledger")) label = "Ledger";
+    else if (path.includes("/app/modelos/modelo-600")) label = "Modelo 600";
+    else if (path.includes("/app/modelos")) label = "Modelos";
     else if (path.includes("/app/expences")) label = "Expenses";
     else if (path.includes("/app/payroll")) label = "Payroll";
     setHeaderTitle(label);

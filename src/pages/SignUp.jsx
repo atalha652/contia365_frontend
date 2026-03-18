@@ -440,20 +440,20 @@ const SignUp = () => {
     }
 
     if (stepKey === "personal-details") {
-      if (!formData.name || !formData.tax_id) {
-        setError("Full name and DNI/NIE are required");
+      if (!formData.name || formData.name.trim() === "") {
+        setError("Full name is required");
         return false;
       }
       if (!formData.email || !emailRegex.test(formData.email)) {
         setError("Valid email is required");
         return false;
       }
-      if (!formData.phone) {
+      if (!formData.phone || formData.phone.trim() === "") {
         setError("Phone number is required");
         return false;
       }
-      if (!formData.bank_iban || !formData.bank_account_holder) {
-        setError("Bank details (IBAN and account holder) are required");
+      if (!formData.password || formData.password.length < 6) {
+        setError("Password must be at least 6 characters long");
         return false;
       }
     }
@@ -536,8 +536,8 @@ const SignUp = () => {
       const form = buildRegistrationFormData();
       const response = await signUp(form);
       if (response.status === 201 || response.status === 200) {
-        toast.success("Registration successful! Please login to continue.");
-        navigate("/sign-in");
+        toast.success("Registration successful! Please complete your profile.");
+        navigate("/onboarding");
       } else {
         const errorMessage =
           response.data?.detail ||
@@ -1265,17 +1265,6 @@ const SignUp = () => {
                 placeholder="John Doe"
               />
               <TextInput
-                id="tax_id"
-                label="DNI/NIE"
-                value={formData.tax_id}
-                onChange={(e) => updateField("tax_id", e.target.value)}
-                required
-                placeholder="00000000A"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextInput
                 id="email"
                 label="Email"
                 type="email"
@@ -1283,6 +1272,18 @@ const SignUp = () => {
                 onChange={(e) => updateField("email", e.target.value)}
                 required
                 placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TextInput
+                id="phone"
+                label="Phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+                required
+                placeholder="+34 600 000 000"
               />
               <TextInput
                 id="password"
@@ -1294,13 +1295,13 @@ const SignUp = () => {
                 placeholder="*********"
               />
             </div>
+
             <TextInput
-              id="phone"
-              label="Phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+34 600 000 000"
+              id="tax_id"
+              label="DNI/NIE"
+              value={formData.tax_id}
+              onChange={(e) => updateField("tax_id", e.target.value)}
+              placeholder="00000000A"
             />
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">

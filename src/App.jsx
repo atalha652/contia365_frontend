@@ -19,6 +19,7 @@ import InvoicesV2 from "./pages/InvoicesV2";
 import InvoicesV3 from "./pages/InvoicesV3";
 
 import AppPage from "./pages/AppPage";
+import Onboarding from "./pages/Onboarding";
 import AppDashboard from "./components/pages/app/Dashboard";
 import Vouchers from "./components/pages/app/vouchers/Vouchers";
 import VouchersUploads from "./components/pages/app/vouchers/Uploads";
@@ -53,6 +54,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/sign-in" element={<SignIn />} />
             <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/invoices" element={<Invoices />}>
               <Route index element={<Dashboard />} />
               <Route path="list" element={<InvoicesList />} />

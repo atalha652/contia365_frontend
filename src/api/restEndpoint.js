@@ -31,4 +31,10 @@ export const GMAIL_URL = `${SERVER_PATH}/api/gmail`;
 // Base URL for bank operations (accounts, transactions, import, matching)
 export const BANK_URL = `${SERVER_PATH}/api/bank`;
 
+// Onboarding End Points
+export const ONBOARDING_URL = `${SERVER_PATH}/api/onboarding`;
+
+// Census Data End Points
+export const CENSUS_URL = `${SERVER_PATH}/api/census-data`;
+
 

@@ -96,9 +96,12 @@ const SignUp = () => {
     form.append("name", formData.name || "");
     form.append("email", formData.email || "");
     form.append("password", formData.password || "");
-    form.append("type", userType);
     form.append("phone", formData.phone || "");
+    form.append("type", userType);
     form.append("tax_id", formData.tax_id || "");
+    if (userType === "organization") {
+      form.append("company_name", formData.organization_info.company_name || "");
+    }
     form.append("registration_flow", registrationFlow);
     form.append("role", "user");
     form.append("has_digital_certificate", hasFlow || "");
@@ -131,7 +134,8 @@ const SignUp = () => {
     } else {
       form.append("other_certificate", "");
     }
-    form.append("payment_method", isPaymentConfirmed ? "Stripe" : "");
+    const pmMap = { stripe: "Stripe", redsys: "Redsys", bizum: "Bizum" };
+    form.append("payment_method", isPaymentConfirmed && paymentMethod ? (pmMap[paymentMethod] || "") : "");
     return form;
   };
 

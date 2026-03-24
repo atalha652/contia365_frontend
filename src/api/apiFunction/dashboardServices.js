@@ -1,5 +1,5 @@
 // Dashboard API service functions to integrate backend stats and summary
-import { DASHBOARD_URL } from "../restEndpoint";
+import { DASHBOARD_URL, TAX_DASHBOARD_URL } from "../restEndpoint";
 import { httpGet } from "../../utils/httpMethods";
 
 // Fetch detailed dashboard stats with optional filters
@@ -29,6 +29,18 @@ export const getDashboardSummary = async ({ userId }) => {
     return response?.data || {};
   } catch (err) {
     console.error("Get dashboard summary error:", err);
+    throw err;
+  }
+};
+
+// Fetch tax dashboard deadline details for current user
+export const getTaxDashboardDeadline = async ({ userId }) => {
+  try {
+    if (!userId) throw new Error("Missing userId for tax dashboard deadline");
+    const response = await httpGet({ url: `${TAX_DASHBOARD_URL}/${userId}` });
+    return response?.data || {};
+  } catch (err) {
+    console.error("Get tax dashboard deadline error:", err);
     throw err;
   }
 };

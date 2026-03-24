@@ -3,8 +3,51 @@ import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import MonthDataTable from "./MonthDataTable";
 
-const MonthTabs = ({ semester, year }) => {
+const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, contentMode = "ledger", deadlineInfo = null }) => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+
+    const getTodayMonthNameIfSameYear = () => {
+        const now = new Date();
+        if (now.getFullYear() !== year) return null;
+        return monthNames[now.getMonth()] || null;
+    };
+
+    const parseDeadlineRange = (deadlineText) => {
+        if (!deadlineText || typeof deadlineText !== "string") return null;
+        const re = /(\d{1,2})\s+([A-Za-z]{3})\s*[–-]\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/;
+        const m = deadlineText.match(re);
+        if (!m) return null;
+
+        const monthMap = {
+            Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+            Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+        };
+        const startDay = Number(m[1]);
+        const startMonth = monthMap[m[2]];
+        const endDay = Number(m[3]);
+        const endMonth = monthMap[m[4]];
+        const endYear = Number(m[5]);
+        const startYear = endYear;
+        if (startMonth === undefined || endMonth === undefined) return null;
+
+        const start = new Date(startYear, startMonth, startDay);
+        const end = new Date(endYear, endMonth, endDay);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+        return { start, end };
+    };
+
+    const getUpcomingDeadlineStartDate = () => {
+        const range = parseDeadlineRange(deadlineInfo?.deadline);
+        if (!range) return null;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (range.end < todayStart) return null;
+        return range.start > todayStart ? range.start : todayStart;
+    };
 
     const getMonthsForSemester = (semesterNumber) => {
         const monthGroups = {
@@ -32,7 +75,7 @@ const MonthTabs = ({ semester, year }) => {
     // Initialize active month/quarter from URL or default
     const [activeMonth, setActiveMonth] = useState(() => {
         if (isAnnualView) return null;
-        const monthParam = searchParams.get("month");
+        const monthParam = disableUrlSync ? null : searchParams.get("month");
         const currentMonths = getMonthsForSemester(semester);
         return monthParam && currentMonths.includes(monthParam)
             ? monthParam
@@ -41,16 +84,35 @@ const MonthTabs = ({ semester, year }) => {
 
     const [activeQuarter, setActiveQuarter] = useState(() => {
         if (!isAnnualView) return null;
-        const quarterParam = searchParams.get("quarter");
-        return quarterParam ? parseInt(quarterParam) : 1;
+        const quarterParam = disableUrlSync ? null : searchParams.get("quarter");
+        if (quarterParam) return parseInt(quarterParam);
+        if (contentMode === "dates") {
+            const upcomingStart = getUpcomingDeadlineStartDate();
+            if (upcomingStart && upcomingStart.getFullYear() === year) {
+                return Math.floor(upcomingStart.getMonth() / 3) + 1;
+            }
+        }
+        if (typeof defaultQuarterId === "number" && defaultQuarterId >= 1 && defaultQuarterId <= 4) return defaultQuarterId;
+        return 1;
     });
 
     // Track which accordion items are open (for Annual view)
     const [expandedMonths, setExpandedMonths] = useState(() => {
         // By default, expand the first month of the first quarter
         if (isAnnualView) {
-            const firstQuarter = getAllQuarters()[0];
-            return [firstQuarter.months[0]];
+            const initialQuarterId = (typeof defaultQuarterId === "number" && defaultQuarterId >= 1 && defaultQuarterId <= 4)
+                ? defaultQuarterId
+                : 1;
+            const initialQuarter = getAllQuarters().find(q => q.id === initialQuarterId) || getAllQuarters()[0];
+            if (contentMode === "dates") {
+                const upcomingStart = getUpcomingDeadlineStartDate();
+                if (upcomingStart && upcomingStart.getFullYear() === year) {
+                    return [monthNames[upcomingStart.getMonth()]];
+                }
+            }
+            const todayMonth = getTodayMonthNameIfSameYear();
+            const monthToOpen = (todayMonth && initialQuarter.months.includes(todayMonth)) ? todayMonth : initialQuarter.months[0];
+            return [monthToOpen];
         }
         return [];
     });
@@ -58,40 +120,62 @@ const MonthTabs = ({ semester, year }) => {
     // Update active month/quarter when semester changes
     useEffect(() => {
         if (isAnnualView) {
-            const quarterParam = searchParams.get("quarter");
-            const newQuarter = quarterParam ? parseInt(quarterParam) : 1;
+            const quarterParam = disableUrlSync ? null : searchParams.get("quarter");
+            const newQuarter = quarterParam
+                ? parseInt(quarterParam)
+                : (() => {
+                    if (contentMode === "dates") {
+                        const upcomingStart = getUpcomingDeadlineStartDate();
+                        if (upcomingStart && upcomingStart.getFullYear() === year) {
+                            return Math.floor(upcomingStart.getMonth() / 3) + 1;
+                        }
+                    }
+                    return (typeof defaultQuarterId === "number" && defaultQuarterId >= 1 && defaultQuarterId <= 4 ? defaultQuarterId : 1);
+                })();
             setActiveQuarter(newQuarter);
             setActiveMonth(null);
-            // Expand first month of the selected quarter
+            // Expand deadline month (if available); otherwise current month; otherwise first month
             const selectedQuarter = getAllQuarters().find(q => q.id === newQuarter);
             if (selectedQuarter) {
-                setExpandedMonths([selectedQuarter.months[0]]);
+                if (contentMode === "dates") {
+                    const upcomingStart = getUpcomingDeadlineStartDate();
+                    const deadlineMonthName = upcomingStart && upcomingStart.getFullYear() === year
+                        ? monthNames[upcomingStart.getMonth()]
+                        : null;
+                    if (deadlineMonthName && selectedQuarter.months.includes(deadlineMonthName)) {
+                        setExpandedMonths([deadlineMonthName]);
+                        return;
+                    }
+                }
+                const todayMonth = getTodayMonthNameIfSameYear();
+                const monthToOpen = (todayMonth && selectedQuarter.months.includes(todayMonth)) ? todayMonth : selectedQuarter.months[0];
+                setExpandedMonths([monthToOpen]);
             }
         } else {
             const currentMonths = getMonthsForSemester(semester);
-            const monthParam = searchParams.get("month");
+            const monthParam = disableUrlSync ? null : searchParams.get("month");
 
             if (!currentMonths.includes(activeMonth)) {
                 const newMonth = currentMonths[0];
                 setActiveMonth(newMonth);
-                setSearchParams({ semester: semester.toString(), month: newMonth });
+                if (!disableUrlSync) setSearchParams({ semester: semester.toString(), month: newMonth });
             } else if (monthParam && currentMonths.includes(monthParam)) {
                 setActiveMonth(monthParam);
             }
             setActiveQuarter(null);
         }
-    }, [semester]);
+    }, [semester, disableUrlSync, defaultQuarterId, contentMode, deadlineInfo, year]);
 
     // Update URL when month changes
     const handleMonthChange = (month) => {
         setActiveMonth(month);
-        setSearchParams({ semester: semester.toString(), month });
+        if (!disableUrlSync) setSearchParams({ semester: semester.toString(), month });
     };
 
     // Update URL when quarter changes
     const handleQuarterChange = (quarterId) => {
         setActiveQuarter(quarterId);
-        setSearchParams({ semester: 'annual', quarter: quarterId.toString() });
+        if (!disableUrlSync) setSearchParams({ semester: 'annual', quarter: quarterId.toString() });
     };
 
     // Toggle accordion item
@@ -100,6 +184,96 @@ const MonthTabs = ({ semester, year }) => {
             prev.includes(month)
                 ? prev.filter(m => m !== month)
                 : [...prev, month]
+        );
+    };
+
+    const renderMonthDateGrid = (monthName) => {
+        const monthIndexByName = {
+            January: 0,
+            February: 1,
+            March: 2,
+            April: 3,
+            May: 4,
+            June: 5,
+            July: 6,
+            August: 7,
+            September: 8,
+            October: 9,
+            November: 10,
+            December: 11,
+        };
+        const monthIndex = monthIndexByName[monthName];
+        if (monthIndex === undefined) return null;
+
+        const deadlineRange = parseDeadlineRange(deadlineInfo?.deadline);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const upcomingDeadlineRange = deadlineRange
+            ? {
+                start: deadlineRange.start > todayStart ? deadlineRange.start : todayStart,
+                end: deadlineRange.end,
+            }
+            : null;
+        const hasUpcomingDeadline = Boolean(
+            upcomingDeadlineRange && upcomingDeadlineRange.end >= upcomingDeadlineRange.start
+        );
+        const firstDay = new Date(year, monthIndex, 1);
+        const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+        const startWeekday = firstDay.getDay(); // 0=Sun
+
+        const today = new Date();
+        const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+        const todayDate = isCurrentMonth ? today.getDate() : null;
+
+        const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+        return (
+            <div className="space-y-3">
+                <div className="grid grid-cols-7 gap-2">
+                    {labels.map((d) => (
+                        <div key={d} className="text-[11px] font-semibold text-fg-60 text-center">
+                            {d}
+                        </div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                    {Array.from({ length: startWeekday }).map((_, i) => (
+                        <div key={`pad-${i}`} />
+                    ))}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const dayNum = i + 1;
+                        const isToday = todayDate === dayNum;
+                        const currentDate = new Date(year, monthIndex, dayNum);
+                        const isDeadlineDate = hasUpcomingDeadline
+                            ? currentDate >= upcomingDeadlineRange.start && currentDate <= upcomingDeadlineRange.end
+                            : false;
+                        return (
+                            <div
+                                key={dayNum}
+                                className={`
+                                    h-9 rounded-lg flex items-center justify-center text-sm font-medium
+                                    border transition-colors
+                                    ${isToday
+                                        ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white border-transparent shadow-md"
+                                        : isDeadlineDate
+                                            ? "bg-orange-500/15 text-orange-600 border-orange-400/40"
+                                            : "bg-bg-60 text-fg-40 border-bd-50"
+                                    }
+                                `}
+                            >
+                                {dayNum}
+                            </div>
+                        );
+                    })}
+                </div>
+                {hasUpcomingDeadline && deadlineInfo?.deadline && (
+                    <div className="text-xs text-fg-60 pt-1">
+                        Upcoming deadline: <span className="font-medium text-fg-40">{deadlineInfo.deadline}</span>
+                        {deadlineInfo?.modelo_no ? <span> • Modelo {deadlineInfo.modelo_no}</span> : null}
+                        {deadlineInfo?.name ? <span> • {deadlineInfo.name}</span> : null}
+                    </div>
+                )}
+            </div>
         );
     };
 
@@ -176,7 +350,10 @@ const MonthTabs = ({ semester, year }) => {
                                         ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}
                                     `}>
                                         <div className="p-5 border-t border-bd-50 bg-bg-70">
-                                            <MonthDataTable month={month} semester={activeQuarter} year={year} />
+                                            {contentMode === "dates"
+                                                ? renderMonthDateGrid(month)
+                                                : <MonthDataTable month={month} semester={activeQuarter} year={year} />
+                                            }
                                         </div>
                                     </div>
                                 </div>

@@ -37,4 +37,7 @@ export const ONBOARDING_URL = `${SERVER_PATH}/api/onboarding`;
 // Census Data End Points
 export const CENSUS_URL = `${SERVER_PATH}/api/census-data`;
 
+// Tax dashboard deadline endpoint
+export const TAX_DASHBOARD_URL = `${SERVER_PATH}/api/tax-dashboard`;
+
 

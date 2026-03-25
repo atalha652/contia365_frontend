@@ -77,9 +77,14 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
         if (isAnnualView) return null;
         const monthParam = disableUrlSync ? null : searchParams.get("month");
         const currentMonths = getMonthsForSemester(semester);
-        return monthParam && currentMonths.includes(monthParam)
-            ? monthParam
-            : currentMonths[0];
+        if (monthParam && currentMonths.includes(monthParam)) return monthParam;
+        // Default to current month if it falls in this quarter and year matches
+        const now = new Date();
+        if (now.getFullYear() === year) {
+            const todayMonthName = monthNames[now.getMonth()];
+            if (currentMonths.includes(todayMonthName)) return todayMonthName;
+        }
+        return currentMonths[0];
     });
 
     const [activeQuarter, setActiveQuarter] = useState(() => {
@@ -156,7 +161,11 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             const monthParam = disableUrlSync ? null : searchParams.get("month");
 
             if (!currentMonths.includes(activeMonth)) {
-                const newMonth = currentMonths[0];
+                const now = new Date();
+                const todayMonthName = now.getFullYear() === year ? monthNames[now.getMonth()] : null;
+                const newMonth = (todayMonthName && currentMonths.includes(todayMonthName))
+                    ? todayMonthName
+                    : currentMonths[0];
                 setActiveMonth(newMonth);
                 if (!disableUrlSync) setSearchParams({ semester: semester.toString(), month: newMonth });
             } else if (monthParam && currentMonths.includes(monthParam)) {

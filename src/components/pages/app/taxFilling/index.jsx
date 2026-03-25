@@ -1,11 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Calendar, TrendingUp } from "lucide-react";
 import MonthTabs from "./MonthTabs";
 
 const TaxFiling = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const years = [2024, 2025];
+
+  // Build year list from user's created_at up to the current year
+  const years = useMemo(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const startYear = user?.created_at
+        ? new Date(user.created_at).getFullYear()
+        : new Date().getFullYear();
+      const currentYear = new Date().getFullYear();
+      const result = [];
+      for (let y = startYear; y <= currentYear; y++) result.push(y);
+      return result;
+    } catch {
+      return [new Date().getFullYear()];
+    }
+  }, []);
+
   const semesters = [
     { id: 1, label: "Q1", fullLabel: "1st Quarter", months: "Jan - Mar", color: "from-blue-500 to-cyan-500" },
     { id: 2, label: "Q2", fullLabel: "2nd Quarter", months: "Apr - Jun", color: "from-green-500 to-emerald-500" },
@@ -16,13 +32,15 @@ const TaxFiling = () => {
   // Initialize selected year from URL or default to current year
   const [selectedYear, setSelectedYear] = useState(() => {
     const yearParam = searchParams.get("year");
-    return yearParam ? parseInt(yearParam) : 2024;
+    return yearParam ? parseInt(yearParam) : new Date().getFullYear();
   });
 
-  // Initialize selected semester from URL or default to 1
+  // Initialize selected semester from URL or default to current quarter
   const [selectedSemester, setSelectedSemester] = useState(() => {
     const semesterParam = searchParams.get("semester");
-    return semesterParam ? (semesterParam === 'annual' ? 'annual' : parseInt(semesterParam)) : 1;
+    if (semesterParam) return semesterParam === 'annual' ? 'annual' : parseInt(semesterParam);
+    // Default to current quarter based on today's month
+    return Math.floor(new Date().getMonth() / 3) + 1;
   });
 
   // Update URL when year or semester changes

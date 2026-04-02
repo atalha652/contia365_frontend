@@ -226,8 +226,8 @@ const Dashboard = () => {
                   <div key={v._id} className="bg-bg-60 border border-bd-50 rounded-lg p-4 flex items-center justify-between">
                     {/* Left: compact type avatar and title */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${String(v.transaction_type || '').toLowerCase() === 'credit' ? 'bg-green-900/20 text-green-300' : 'bg-blue-900/20 text-blue-300'}`}>
-                        <span className="text-xs font-bold">{String(v.transaction_type || 'D').toUpperCase().startsWith('C') ? 'C' : 'D'}</span>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${String(v.transaction_type || '').toLowerCase() === 'income' ? 'bg-green-900/20 text-green-300' : 'bg-red-900/20 text-red-300'}`}>
+                        <span className="text-xs font-bold">{String(v.transaction_type || 'E').toUpperCase().startsWith('I') ? 'I' : 'E'}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-fg-40 truncate">{v.title || 'Voucher'}</div>

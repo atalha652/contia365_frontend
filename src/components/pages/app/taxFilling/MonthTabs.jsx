@@ -16,37 +16,26 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
         return monthNames[now.getMonth()] || null;
     };
 
-    const parseDeadlineRange = (deadlineText) => {
-        if (!deadlineText || typeof deadlineText !== "string") return null;
-        const re = /(\d{1,2})\s+([A-Za-z]{3})\s*[–-]\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/;
-        const m = deadlineText.match(re);
-        if (!m) return null;
-
-        const monthMap = {
-            Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-            Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
-        };
-        const startDay = Number(m[1]);
-        const startMonth = monthMap[m[2]];
-        const endDay = Number(m[3]);
-        const endMonth = monthMap[m[4]];
-        const endYear = Number(m[5]);
-        const startYear = endYear;
-        if (startMonth === undefined || endMonth === undefined) return null;
-
-        const start = new Date(startYear, startMonth, startDay);
-        const end = new Date(endYear, endMonth, endDay);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-        return { start, end };
+    // Parse the deadlines array from the new API response format
+    const getDeadlineDates = () => {
+        const deadlines = deadlineInfo?.deadlines;
+        if (!Array.isArray(deadlines) || deadlines.length === 0) return [];
+        return deadlines
+            .filter(d => d?.deadline_date)
+            .map(d => ({
+                ...d,
+                date: new Date(d.deadline_date + "T00:00:00"),
+            }))
+            .filter(d => !isNaN(d.date.getTime()));
     };
 
     const getUpcomingDeadlineStartDate = () => {
-        const range = parseDeadlineRange(deadlineInfo?.deadline);
-        if (!range) return null;
+        const dates = getDeadlineDates();
+        if (dates.length === 0) return null;
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        if (range.end < todayStart) return null;
-        return range.start > todayStart ? range.start : todayStart;
+        const upcoming = dates.find(d => d.date >= todayStart);
+        return upcoming ? upcoming.date : null;
     };
 
     const getMonthsForSemester = (semesterNumber) => {
@@ -198,37 +187,27 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
 
     const renderMonthDateGrid = (monthName) => {
         const monthIndexByName = {
-            January: 0,
-            February: 1,
-            March: 2,
-            April: 3,
-            May: 4,
-            June: 5,
-            July: 6,
-            August: 7,
-            September: 8,
-            October: 9,
-            November: 10,
-            December: 11,
+            January: 0, February: 1, March: 2, April: 3,
+            May: 4, June: 5, July: 6, August: 7,
+            September: 8, October: 9, November: 10, December: 11,
         };
         const monthIndex = monthIndexByName[monthName];
         if (monthIndex === undefined) return null;
 
-        const deadlineRange = parseDeadlineRange(deadlineInfo?.deadline);
+        const allDeadlines = getDeadlineDates();
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const upcomingDeadlineRange = deadlineRange
-            ? {
-                start: deadlineRange.start > todayStart ? deadlineRange.start : todayStart,
-                end: deadlineRange.end,
-            }
-            : null;
-        const hasUpcomingDeadline = Boolean(
-            upcomingDeadlineRange && upcomingDeadlineRange.end >= upcomingDeadlineRange.start
+
+        // Deadlines that fall in this specific month
+        const monthDeadlines = allDeadlines.filter(
+            d => d.date.getFullYear() === year && d.date.getMonth() === monthIndex
         );
+        // Set of day numbers that are deadline dates in this month
+        const deadlineDaySet = new Set(monthDeadlines.map(d => d.date.getDate()));
+
         const firstDay = new Date(year, monthIndex, 1);
         const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-        const startWeekday = firstDay.getDay(); // 0=Sun
+        const startWeekday = firstDay.getDay();
 
         const today = new Date();
         const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
@@ -240,9 +219,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             <div className="space-y-3">
                 <div className="grid grid-cols-7 gap-2">
                     {labels.map((d) => (
-                        <div key={d} className="text-[11px] font-semibold text-fg-60 text-center">
-                            {d}
-                        </div>
+                        <div key={d} className="text-[11px] font-semibold text-fg-60 text-center">{d}</div>
                     ))}
                 </div>
                 <div className="grid grid-cols-7 gap-2">
@@ -252,21 +229,29 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                         const dayNum = i + 1;
                         const isToday = todayDate === dayNum;
-                        const currentDate = new Date(year, monthIndex, dayNum);
-                        const isDeadlineDate = hasUpcomingDeadline
-                            ? currentDate >= upcomingDeadlineRange.start && currentDate <= upcomingDeadlineRange.end
-                            : false;
+                        const isDeadlineDate = deadlineDaySet.has(dayNum);
+                        const isPast = new Date(year, monthIndex, dayNum) < todayStart;
                         return (
                             <div
                                 key={dayNum}
+                                title={
+                                    isDeadlineDate
+                                        ? monthDeadlines
+                                            .filter(d => d.date.getDate() === dayNum)
+                                            .map(d => `Modelo ${d.modelo}: ${d.description}`)
+                                            .join("\n")
+                                        : undefined
+                                }
                                 className={`
                                     h-9 rounded-lg flex items-center justify-center text-sm font-medium
-                                    border transition-colors
+                                    border transition-colors cursor-default
                                     ${isToday
                                         ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white border-transparent shadow-md"
-                                        : isDeadlineDate
-                                            ? "bg-orange-500/15 text-orange-600 border-orange-400/40"
-                                            : "bg-bg-60 text-fg-40 border-bd-50"
+                                        : isDeadlineDate && !isPast
+                                            ? "bg-orange-500/15 text-orange-600 border-orange-400/40 ring-1 ring-orange-400/60"
+                                            : isDeadlineDate && isPast
+                                                ? "bg-fg-60/10 text-fg-60 border-bd-50 line-through"
+                                                : "bg-bg-60 text-fg-40 border-bd-50"
                                     }
                                 `}
                             >
@@ -275,11 +260,26 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                         );
                     })}
                 </div>
-                {hasUpcomingDeadline && deadlineInfo?.deadline && (
-                    <div className="text-xs text-fg-60 pt-1">
-                        Upcoming deadline: <span className="font-medium text-fg-40">{deadlineInfo.deadline}</span>
-                        {deadlineInfo?.modelo_no ? <span> • Modelo {deadlineInfo.modelo_no}</span> : null}
-                        {deadlineInfo?.name ? <span> • {deadlineInfo.name}</span> : null}
+
+                {/* Deadline list for this month */}
+                {monthDeadlines.length > 0 && (
+                    <div className="pt-2 space-y-1.5">
+                        {monthDeadlines.map((d, i) => {
+                            const isPast = d.date < todayStart;
+                            return (
+                                <div key={i} className={`flex items-start gap-2 text-xs rounded-lg px-3 py-2 border ${isPast ? "bg-fg-60/5 border-bd-50 text-fg-60" : "bg-orange-500/10 border-orange-400/30 text-fg-40"}`}>
+                                    <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${isPast ? "bg-fg-60" : "bg-orange-500"}`} />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="font-semibold">Modelo {d.modelo}</span>
+                                        <span className="mx-1 text-fg-60">•</span>
+                                        <span className="text-fg-60">{d.description}</span>
+                                    </div>
+                                    <span className={`shrink-0 font-medium ${isPast ? "text-fg-60" : "text-orange-600"}`}>
+                                        {d.days_remaining > 0 ? `${d.days_remaining}d left` : isPast ? "Passed" : "Today"}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

@@ -33,11 +33,11 @@ export const getDashboardSummary = async ({ userId }) => {
   }
 };
 
-// Fetch tax dashboard deadline details for current user
+// Fetch tax dashboard deadlines for current user
 export const getTaxDashboardDeadline = async ({ userId }) => {
   try {
     if (!userId) throw new Error("Missing userId for tax dashboard deadline");
-    const response = await httpGet({ url: `${TAX_DASHBOARD_URL}/${userId}` });
+    const response = await httpGet({ url: `${TAX_DASHBOARD_URL}/deadlines` });
     return response?.data || {};
   } catch (err) {
     console.error("Get tax dashboard deadline error:", err);

@@ -16,7 +16,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
   const [description, setDescription] = useState("");
   // Default category set to Bill so the upload button stays enabled without extra click
   const [category, setCategory] = useState("Bill");
-  // New field: transaction type (credit/debit)
+  // New field: transaction type (income/expense)
   const [transactionType, setTransactionType] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -24,6 +24,13 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
   // Update local files list when user selects files
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);
+    const oversized = selected.filter((f) => f.size > 1 * 1024 * 1024);
+    if (oversized.length > 0) {
+      setError(`File(s) too large: ${oversized.map((f) => f.name).join(", ")}. Max size is 1MB.`);
+      e.target.value = "";
+      return;
+    }
+    setError("");
     setFiles(selected);
   };
 
@@ -136,13 +143,12 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
               </Select>
             </div>
             <div>
-              {/* Transaction type selection (credit/debit) */}
+              {/* Transaction type selection (income/expense) */}
               <label className="block text-sm text-fg-60 mb-1">Transaction Type</label>
-              {/* Use global Select which renders custom dropdown with accent hover and bd-50 borders */}
               <Select value={transactionType} onChange={(e) => setTransactionType(e.target.value)}>
                 <option value="">Select type</option>
-                <option value="credit">credit</option>
-                <option value="debit">debit</option>
+                <option value="income">income</option>
+                <option value="expense">expense</option>
               </Select>
             </div>
           </div>
@@ -165,7 +171,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
               accept="image/*,application/pdf"
               onChange={handleFileChange}
             />
-            <p className="text-xs text-fg-60 mt-2">Accepted: JPG, PNG, PDF</p>
+            <p className="text-xs text-fg-60 mt-2">Accepted: JPG, PNG, PDF · Max size: 1MB per file</p>
           </div>
           {/* Show a single-row, scrollable preview of selected files with a cross icon on hover */}
           {previews.length > 0 && (

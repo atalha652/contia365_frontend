@@ -40,4 +40,7 @@ export const CENSUS_URL = `${SERVER_PATH}/api/census-data`;
 // Tax dashboard deadline endpoint
 export const TAX_DASHBOARD_URL = `${SERVER_PATH}/api/tax-dashboard`;
 
+// Tax Engine End Points
+export const TAX_ENGINE_URL = `${SERVER_PATH}/api/tax-engine`;
+
 

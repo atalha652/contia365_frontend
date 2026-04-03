@@ -4,13 +4,32 @@ import { BarChart3, Calendar, DollarSign, Wallet } from "lucide-react";
 // Import services to fetch dashboard stats and summary
 import { getDashboardStats, getDashboardSummary, getTaxDashboardDeadline } from "../../../api/apiFunction/dashboardServices";
 import MonthTabs from "./taxFilling/MonthTabs";
+import VATSummaryWidget from "./dashboard/VATSummaryWidget";
+import IRPFSummaryWidget from "./dashboard/IRPFSummaryWidget";
 
 const Dashboard = () => {
-  const { currentYear, currentQuarterId } = useMemo(() => {
+  const { currentYear, currentQuarterId, currentMonthStart, currentMonthEnd, currentQuarterStart, currentQuarterEnd } = useMemo(() => {
     const now = new Date();
     const monthIndex = now.getMonth(); // 0-11
     const quarterId = Math.floor(monthIndex / 3) + 1; // 1-4
-    return { currentYear: now.getFullYear(), currentQuarterId: quarterId };
+    
+    // Current month dates
+    const monthStart = new Date(now.getFullYear(), monthIndex, 1);
+    const monthEnd = new Date(now.getFullYear(), monthIndex + 1, 0);
+    
+    // Current quarter dates
+    const quarterStartMonth = (quarterId - 1) * 3;
+    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+    const quarterEnd = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+    
+    return {
+      currentYear: now.getFullYear(),
+      currentQuarterId: quarterId,
+      currentMonthStart: monthStart.toISOString().split('T')[0],
+      currentMonthEnd: monthEnd.toISOString().split('T')[0],
+      currentQuarterStart: quarterStart.toISOString().split('T')[0],
+      currentQuarterEnd: quarterEnd.toISOString().split('T')[0],
+    };
   }, []);
 
   // Helper: Format dates in a readable short format
@@ -200,6 +219,23 @@ const Dashboard = () => {
             <div className="text-sm text-fg-60 bg-bg-50 border border-bd-50 rounded-xl p-3">{error}</div>
           </div>
         )}
+
+        {/* Tax Summary Widgets */}
+        <div className="py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <VATSummaryWidget
+              startDate={currentMonthStart}
+              endDate={currentMonthEnd}
+              title="VAT Summary (Current Month)"
+            />
+            <IRPFSummaryWidget
+              startDate={currentQuarterStart}
+              endDate={currentQuarterEnd}
+              quarter={currentQuarterId}
+              title="IRPF Summary (Current Quarter)"
+            />
+          </div>
+        </div>
 
         {/* Recent Activity redesign: single-row sub cards with one badge */}
         <div className="py-4">

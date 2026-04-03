@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Calendar, TrendingUp } from "lucide-react";
+import { Calendar, TrendingUp, Calculator } from "lucide-react";
 import MonthTabs from "./MonthTabs";
+import ModeloCalculationCard from "./ModeloCalculationCard";
 
 const TaxFiling = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -199,6 +200,51 @@ const TaxFiling = () => {
                 </div>
               </div>
             </div>
+
+            {/* Tax Calculations Section */}
+            {selectedSemester !== 'annual' && (
+              <div className="mt-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-fg-40 flex items-center gap-2">
+                    <Calculator className="w-5 h-5" />
+                    Tax Calculations
+                  </h2>
+                  <p className="text-sm text-fg-60 mt-1">
+                    Automated calculations for Q{selectedSemester} {selectedYear}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Modelo 303 - VAT */}
+                  <ModeloCalculationCard
+                    modeloNo="303"
+                    startDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
+                    })()}
+                    endDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
+                    })()}
+                    title="Modelo 303 - VAT Declaration"
+                  />
+                  
+                  {/* Modelo 130 - IRPF */}
+                  <ModeloCalculationCard
+                    modeloNo="130"
+                    startDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
+                    })()}
+                    endDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
+                    })()}
+                    title="Modelo 130 - IRPF Quarterly Payment"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

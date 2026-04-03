@@ -40,4 +40,9 @@ export const CENSUS_URL = `${SERVER_PATH}/api/census-data`;
 // Tax dashboard deadline endpoint
 export const TAX_DASHBOARD_URL = `${SERVER_PATH}/api/tax-dashboard`;
 
+// Tax Calculation End Points
+// Base URL for tax calculation APIs (VAT, IRPF, modelo calculations, auto-mapping)
+export const TAX_CALCULATION_URL = `${SERVER_PATH}/api/tax`;
+
+
 

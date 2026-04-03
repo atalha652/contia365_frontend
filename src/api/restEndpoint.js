@@ -1,4 +1,9 @@
-export const SERVER_PATH = import.meta.env.VITE_APP_API_URL;
+// Empty or unset VITE_APP_API_URL => relative "/api/..." (use with Vite dev proxy to avoid CORS).
+const _apiBase = import.meta.env.VITE_APP_API_URL;
+export const SERVER_PATH =
+  _apiBase == null || String(_apiBase).trim() === ""
+    ? ""
+    : String(_apiBase).replace(/\/$/, "");
 
 // Auth End Points
 export const AUTH_URL = `${SERVER_PATH}/api/auth`;

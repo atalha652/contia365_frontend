@@ -7,7 +7,7 @@ import React, { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { getVATSummary } from "../../../../api/apiFunction/taxCalculationServices";
 
-const VATSummaryWidget = ({ startDate, endDate, title = "VAT Summary" }) => {
+const VATSummaryWidget = ({ startDate, endDate, userId, title = "VAT Summary" }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +17,7 @@ const VATSummaryWidget = ({ startDate, endDate, title = "VAT Summary" }) => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getVATSummary({ startDate, endDate });
+        const data = await getVATSummary({ startDate, endDate, userId });
         setSummary(data);
       } catch (err) {
         setError(err?.response?.data?.detail || "Failed to load VAT summary");
@@ -29,7 +29,7 @@ const VATSummaryWidget = ({ startDate, endDate, title = "VAT Summary" }) => {
     if (startDate && endDate) {
       fetchSummary();
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, userId]);
 
   if (loading) {
     return (

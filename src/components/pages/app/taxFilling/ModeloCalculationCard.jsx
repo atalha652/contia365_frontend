@@ -7,7 +7,7 @@ import React, { useEffect, useState } from "react";
 import { FileText, TrendingUp, Calculator, Download } from "lucide-react";
 import { getModeloCalculation } from "../../../../api/apiFunction/taxCalculationServices";
 
-const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title }) => {
+const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId }) => {
   const [calculation, setCalculation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +17,7 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title }) => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getModeloCalculation({ modeloNo, startDate, endDate });
+        const data = await getModeloCalculation({ modeloNo, startDate, endDate, userId });
         setCalculation(data);
       } catch (err) {
         setError(err?.response?.data?.detail || `Failed to load Modelo ${modeloNo}`);
@@ -29,7 +29,7 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title }) => {
     if (modeloNo && startDate && endDate) {
       fetchCalculation();
     }
-  }, [modeloNo, startDate, endDate]);
+  }, [modeloNo, startDate, endDate, userId]);
 
   if (loading) {
     return (

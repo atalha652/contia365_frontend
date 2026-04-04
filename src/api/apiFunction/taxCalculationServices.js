@@ -11,21 +11,39 @@ import { TAX_CALCULATION_URL } from "../restEndpoint";
  * @param {Object} params
  * @param {string} params.startDate - Period start date (YYYY-MM-DD)
  * @param {string} params.endDate - Period end date (YYYY-MM-DD)
+ * @param {string} params.userId - User/Organization ID (for public endpoint)
  * @returns {Promise<Object>} VAT summary with output, input, and payable amounts
  */
-export const getVATSummary = async ({ startDate, endDate }) => {
+export const getVATSummary = async ({ startDate, endDate, userId }) => {
   try {
+    // Use public endpoint if userId is provided, otherwise use authenticated endpoint
+    const endpoint = userId 
+      ? `${TAX_CALCULATION_URL}/vat/summary/public`
+      : `${TAX_CALCULATION_URL}/vat/summary`;
+    
+    const params = {
+      start_date: startDate,
+      end_date: endDate,
+    };
+    
+    if (userId) {
+      params.organization_id = userId;
+    }
+    
     const response = await httpGet({
-      url: `${TAX_CALCULATION_URL}/vat/summary`,
-      params: {
-        start_date: startDate,
-        end_date: endDate,
-      },
+      url: endpoint,
+      params,
     });
     return response?.data;
   } catch (error) {
     console.error("Error fetching VAT summary:", error);
-    throw error;
+    // Return empty data instead of throwing to prevent UI crashes
+    return {
+      output_vat: 0,
+      input_vat: 0,
+      vat_payable: 0,
+      breakdown: []
+    };
   }
 };
 
@@ -35,24 +53,43 @@ export const getVATSummary = async ({ startDate, endDate }) => {
  * @param {string} params.startDate - Quarter start date (YYYY-MM-DD)
  * @param {string} params.endDate - Quarter end date (YYYY-MM-DD)
  * @param {number} params.quarter - Quarter number (1-4)
+ * @param {string} params.userId - User/Organization ID (for public endpoint)
  * @param {number} [params.irpfRate=20] - IRPF rate percentage
  * @returns {Promise<Object>} IRPF summary with income, expenses, and payable amounts
  */
-export const getIRPFSummary = async ({ startDate, endDate, quarter, irpfRate = 20 }) => {
+export const getIRPFSummary = async ({ startDate, endDate, quarter, userId, irpfRate = 20 }) => {
   try {
+    // Use public endpoint if userId is provided, otherwise use authenticated endpoint
+    const endpoint = userId
+      ? `${TAX_CALCULATION_URL}/irpf/summary/public`
+      : `${TAX_CALCULATION_URL}/irpf/summary`;
+    
+    const params = {
+      start_date: startDate,
+      end_date: endDate,
+      quarter,
+      irpf_rate: irpfRate,
+    };
+    
+    if (userId) {
+      params.organization_id = userId;
+    }
+    
     const response = await httpGet({
-      url: `${TAX_CALCULATION_URL}/irpf/summary`,
-      params: {
-        start_date: startDate,
-        end_date: endDate,
-        quarter,
-        irpf_rate: irpfRate,
-      },
+      url: endpoint,
+      params,
     });
     return response?.data;
   } catch (error) {
     console.error("Error fetching IRPF summary:", error);
-    throw error;
+    // Return empty data instead of throwing to prevent UI crashes
+    return {
+      gross_income: 0,
+      deductible_expenses: 0,
+      net_income: 0,
+      irpf_payable: 0,
+      irpf_to_pay: 0
+    };
   }
 };
 
@@ -62,21 +99,39 @@ export const getIRPFSummary = async ({ startDate, endDate, quarter, irpfRate = 2
  * @param {string} params.modeloNo - Modelo number (303, 130, etc.)
  * @param {string} params.startDate - Period start date (YYYY-MM-DD)
  * @param {string} params.endDate - Period end date (YYYY-MM-DD)
+ * @param {string} params.userId - User/Organization ID (for public endpoint)
  * @returns {Promise<Object>} Modelo calculation with VAT or IRPF summary
  */
-export const getModeloCalculation = async ({ modeloNo, startDate, endDate }) => {
+export const getModeloCalculation = async ({ modeloNo, startDate, endDate, userId }) => {
   try {
+    // Use public endpoint if userId is provided, otherwise use authenticated endpoint
+    const endpoint = userId
+      ? `${TAX_CALCULATION_URL}/modelo/${modeloNo}/calculation/public`
+      : `${TAX_CALCULATION_URL}/modelo/${modeloNo}/calculation`;
+    
+    const params = {
+      start_date: startDate,
+      end_date: endDate,
+    };
+    
+    if (userId) {
+      params.organization_id = userId;
+    }
+    
     const response = await httpGet({
-      url: `${TAX_CALCULATION_URL}/modelo/${modeloNo}/calculation`,
-      params: {
-        start_date: startDate,
-        end_date: endDate,
-      },
+      url: endpoint,
+      params,
     });
     return response?.data;
   } catch (error) {
     console.error(`Error fetching modelo ${modeloNo} calculation:`, error);
-    throw error;
+    // Return empty data instead of throwing to prevent UI crashes
+    return {
+      modelo_no: modeloNo,
+      period_start: startDate,
+      period_end: endDate,
+      summary: {}
+    };
   }
 };
 

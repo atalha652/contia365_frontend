@@ -7,7 +7,7 @@ import React, { useEffect, useState } from "react";
 import { Calculator, TrendingUp, Wallet } from "lucide-react";
 import { getIRPFSummary } from "../../../../api/apiFunction/taxCalculationServices";
 
-const IRPFSummaryWidget = ({ startDate, endDate, quarter, title = "IRPF Summary" }) => {
+const IRPFSummaryWidget = ({ startDate, endDate, quarter, userId, title = "IRPF Summary" }) => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +17,7 @@ const IRPFSummaryWidget = ({ startDate, endDate, quarter, title = "IRPF Summary"
       try {
         setLoading(true);
         setError(null);
-        const data = await getIRPFSummary({ startDate, endDate, quarter });
+        const data = await getIRPFSummary({ startDate, endDate, quarter, userId });
         setSummary(data);
       } catch (err) {
         setError(err?.response?.data?.detail || "Failed to load IRPF summary");
@@ -29,7 +29,7 @@ const IRPFSummaryWidget = ({ startDate, endDate, quarter, title = "IRPF Summary"
     if (startDate && endDate && quarter) {
       fetchSummary();
     }
-  }, [startDate, endDate, quarter]);
+  }, [startDate, endDate, quarter, userId]);
 
   if (loading) {
     return (

@@ -226,12 +226,14 @@ const Dashboard = () => {
             <VATSummaryWidget
               startDate={currentMonthStart}
               endDate={currentMonthEnd}
+              userId={userId}
               title="VAT Summary (Current Month)"
             />
             <IRPFSummaryWidget
               startDate={currentQuarterStart}
               endDate={currentQuarterEnd}
               quarter={currentQuarterId}
+              userId={userId}
               title="IRPF Summary (Current Quarter)"
             />
           </div>

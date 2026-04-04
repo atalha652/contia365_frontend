@@ -7,6 +7,12 @@ import ModeloCalculationCard from "./ModeloCalculationCard";
 const TaxFiling = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Get current user id from localStorage
+  const user = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
+  }, []);
+  const userId = user?.id || user?._id || user?.user_id || user?.uid;
+
   // Build year list from user's created_at up to the current year
   const years = useMemo(() => {
     try {
@@ -218,6 +224,7 @@ const TaxFiling = () => {
                   {/* Modelo 303 - VAT */}
                   <ModeloCalculationCard
                     modeloNo="303"
+                    userId={userId}
                     startDate={(() => {
                       const quarterStartMonth = (selectedSemester - 1) * 3;
                       return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
@@ -232,6 +239,7 @@ const TaxFiling = () => {
                   {/* Modelo 130 - IRPF */}
                   <ModeloCalculationCard
                     modeloNo="130"
+                    userId={userId}
                     startDate={(() => {
                       const quarterStartMonth = (selectedSemester - 1) * 3;
                       return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];

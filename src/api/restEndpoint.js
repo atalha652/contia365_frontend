@@ -49,5 +49,9 @@ export const TAX_DASHBOARD_URL = `${SERVER_PATH}/api/tax-dashboard`;
 // Base URL for tax calculation APIs (VAT, IRPF, modelo calculations, auto-mapping)
 export const TAX_CALCULATION_URL = `${SERVER_PATH}/api/tax`;
 
+// Tax Engine End Points
+// Base URL for tax engine calculations (modelo-specific compute)
+export const TAX_ENGINE_URL = `${SERVER_PATH}/api/tax-engine`;
+
 
 

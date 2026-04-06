@@ -38,3 +38,13 @@ export const uploadCensusDocument = async (file) => {
     return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
   }
 };
+
+export const getLatestCensusRecord = async () => {
+  try {
+    const response = await httpGet({ url: CENSUS_URL + "/latest" });
+    return response?.data || null;
+  } catch (err) {
+    console.error("Get latest census record error:", err);
+    return null;
+  }
+};

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import MonthDataTable from "./MonthDataTable";
 
-const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, contentMode = "ledger", deadlineInfo = null }) => {
+const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, contentMode = "ledger", deadlineInfo = null, deadlines = [] }) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const monthNames = [
         "January", "February", "March", "April", "May", "June",
@@ -41,6 +41,21 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
     };
 
     const getUpcomingDeadlineStartDate = () => {
+        // Use new deadlines array first
+        if (Array.isArray(deadlines) && deadlines.length > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const future = deadlines
+                .filter(d => d.deadline_date)
+                .map(d => {
+                    const [yyyy, mm, dd] = d.deadline_date.split("-").map(Number);
+                    return new Date(yyyy, mm - 1, dd);
+                })
+                .filter(dt => dt >= today)
+                .sort((a, b) => a - b);
+            if (future.length > 0) return future[0];
+        }
+        // Fallback to legacy deadlineInfo text
         const range = parseDeadlineRange(deadlineInfo?.deadline);
         if (!range) return null;
         const todayStart = new Date();
@@ -173,7 +188,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             }
             setActiveQuarter(null);
         }
-    }, [semester, disableUrlSync, defaultQuarterId, contentMode, deadlineInfo, year]);
+    }, [semester, disableUrlSync, defaultQuarterId, contentMode, deadlineInfo, deadlines, year]);
 
     // Update URL when month changes
     const handleMonthChange = (month) => {
@@ -198,37 +213,30 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
 
     const renderMonthDateGrid = (monthName) => {
         const monthIndexByName = {
-            January: 0,
-            February: 1,
-            March: 2,
-            April: 3,
-            May: 4,
-            June: 5,
-            July: 6,
-            August: 7,
-            September: 8,
-            October: 9,
-            November: 10,
-            December: 11,
+            January: 0, February: 1, March: 2, April: 3,
+            May: 4, June: 5, July: 6, August: 7,
+            September: 8, October: 9, November: 10, December: 11,
         };
         const monthIndex = monthIndexByName[monthName];
         if (monthIndex === undefined) return null;
 
-        const deadlineRange = parseDeadlineRange(deadlineInfo?.deadline);
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const upcomingDeadlineRange = deadlineRange
-            ? {
-                start: deadlineRange.start > todayStart ? deadlineRange.start : todayStart,
-                end: deadlineRange.end,
-            }
-            : null;
-        const hasUpcomingDeadline = Boolean(
-            upcomingDeadlineRange && upcomingDeadlineRange.end >= upcomingDeadlineRange.start
-        );
+        // Build day -> [modelo, ...] map from deadlines array (parse as local date)
+        const deadlineDayMap = {};
+        if (Array.isArray(deadlines) && deadlines.length > 0) {
+            deadlines.forEach((d) => {
+                if (!d.deadline_date) return;
+                const [yyyy, mm, dd] = d.deadline_date.split("-").map(Number);
+                if (yyyy === year && mm - 1 === monthIndex) {
+                    if (!deadlineDayMap[dd]) deadlineDayMap[dd] = [];
+                    deadlineDayMap[dd].push(d.modelo);
+                }
+            });
+        }
+        const hasDeadlines = Object.keys(deadlineDayMap).length > 0;
+
         const firstDay = new Date(year, monthIndex, 1);
         const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-        const startWeekday = firstDay.getDay(); // 0=Sun
+        const startWeekday = firstDay.getDay();
 
         const today = new Date();
         const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
@@ -240,46 +248,48 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             <div className="space-y-3">
                 <div className="grid grid-cols-7 gap-2">
                     {labels.map((d) => (
-                        <div key={d} className="text-[11px] font-semibold text-fg-60 text-center">
-                            {d}
-                        </div>
+                        <div key={d} className="text-[11px] font-semibold text-fg-60 text-center">{d}</div>
                     ))}
                 </div>
                 <div className="grid grid-cols-7 gap-2">
-                    {Array.from({ length: startWeekday }).map((_, i) => (
-                        <div key={`pad-${i}`} />
-                    ))}
+                    {Array.from({ length: startWeekday }).map((_, i) => <div key={`pad-${i}`} />)}
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                         const dayNum = i + 1;
                         const isToday = todayDate === dayNum;
-                        const currentDate = new Date(year, monthIndex, dayNum);
-                        const isDeadlineDate = hasUpcomingDeadline
-                            ? currentDate >= upcomingDeadlineRange.start && currentDate <= upcomingDeadlineRange.end
-                            : false;
+                        const modelos = deadlineDayMap[dayNum];
+                        const isDeadlineDay = Boolean(modelos?.length);
                         return (
                             <div
                                 key={dayNum}
+                                title={isDeadlineDay ? `Modelo ${modelos.join(", ")}` : undefined}
                                 className={`
-                                    h-9 rounded-lg flex items-center justify-center text-sm font-medium
-                                    border transition-colors
+                                    relative h-9 rounded-lg flex flex-col items-center justify-center
+                                    text-sm font-medium border transition-colors
                                     ${isToday
                                         ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white border-transparent shadow-md"
-                                        : isDeadlineDate
+                                        : isDeadlineDay
                                             ? "bg-orange-500/15 text-orange-600 border-orange-400/40"
                                             : "bg-bg-60 text-fg-40 border-bd-50"
                                     }
                                 `}
                             >
-                                {dayNum}
+                                <span>{dayNum}</span>
+                                {isDeadlineDay && !isToday && (
+                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-orange-500" />
+                                )}
                             </div>
                         );
                     })}
                 </div>
-                {hasUpcomingDeadline && deadlineInfo?.deadline && (
-                    <div className="text-xs text-fg-60 pt-1">
-                        Upcoming deadline: <span className="font-medium text-fg-40">{deadlineInfo.deadline}</span>
-                        {deadlineInfo?.modelo_no ? <span> • Modelo {deadlineInfo.modelo_no}</span> : null}
-                        {deadlineInfo?.name ? <span> • {deadlineInfo.name}</span> : null}
+                {/* Legend */}
+                {hasDeadlines && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {Object.entries(deadlineDayMap).map(([day, modelos]) => (
+                            <span key={day} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-orange-500/15 text-orange-600 border border-orange-400/30">
+                                <span className="font-semibold">{modelos.join(", ")}</span>
+                                <span className="opacity-70">· {day} {monthName}</span>
+                            </span>
+                        ))}
                     </div>
                 )}
             </div>

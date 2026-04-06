@@ -87,7 +87,7 @@ const Dashboard = () => {
         const [sumRes, stRes, taxRes] = await Promise.allSettled([
           getDashboardSummary({ userId }),
           getDashboardStats({ userId }),
-          getTaxDashboardDeadline({ userId })
+          getTaxDashboardDeadline()
         ]);
 
         if (sumRes.status === "fulfilled") setSummary(sumRes.value || {});
@@ -286,20 +286,23 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Calendar: same annual quarter view as tax filings */}
-        <div className="py-4">
+        {/* Upcoming Deadlines: calendar + list */}
+        <div className="py-4 pb-8">
           <div className="bg-bg-50 border border-bd-50 rounded-xl p-6">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-base font-semibold text-fg-50">Upcoming Deadlines</h3>
-                <p className="text-sm text-fg-60 mt-1">Quarterly overview ({currentYear})</p>
+                {taxDeadline?.full_name && (
+                  <p className="text-sm text-fg-60 mt-1">{taxDeadline.full_name} · NIF {taxDeadline.nif_nie}</p>
+                )}
               </div>
               <div className="w-10 h-10 bg-bg-70 rounded-xl flex items-center justify-center flex-shrink-0">
                 <Calendar className="w-5 h-5 text-fg-50" strokeWidth={1.5} />
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-bg-60 to-bg-70 rounded-2xl border border-bd-50 overflow-hidden">
+            {/* Calendar */}
+            <div className="bg-gradient-to-br from-bg-60 to-bg-70 rounded-2xl border border-bd-50 overflow-hidden mb-4">
               <div className="p-6">
                 <MonthTabs
                   semester="annual"
@@ -307,10 +310,61 @@ const Dashboard = () => {
                   disableUrlSync={true}
                   defaultQuarterId={currentQuarterId}
                   contentMode="dates"
-                  deadlineInfo={taxDeadline}
+                  deadlines={Array.isArray(taxDeadline?.deadlines) ? taxDeadline.deadlines : []}
                 />
               </div>
             </div>
+
+            {/* Deadline list */}
+            {isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-bg-60 border border-bd-50 rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-bg-40 animate-pulse" />
+                      <div>
+                        <div className="h-3 w-48 bg-bg-40 rounded mb-2 animate-pulse" />
+                        <div className="h-2 w-32 bg-bg-40 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-20 bg-bg-40 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : Array.isArray(taxDeadline?.deadlines) && taxDeadline.deadlines.length > 0 ? (
+              <div className="space-y-3">
+                {taxDeadline.deadlines.map((d) => {
+                  const daysLeft = Number(d.days_remaining);
+                  const urgencyColor = daysLeft <= 7
+                    ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                    : daysLeft <= 30
+                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300"
+                    : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+                  const deadlineDate = d.deadline_date
+                    ? new Date(...d.deadline_date.split("-").map(Number).map((v, i) => i === 1 ? v - 1 : v))
+                        .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                    : "-";
+                  return (
+                    <div key={d.modelo} className="bg-bg-60 border border-bd-50 rounded-lg p-4 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-bg-50 border border-bd-50 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-fg-40">{d.modelo}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-fg-40 truncate">{d.description}</p>
+                          <p className="text-xs text-fg-60">{d.periodicity} · {d.current_period} · Due {deadlineDate}</p>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap flex-shrink-0 ${urgencyColor}`}>
+                        {daysLeft}d left
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              !isLoading && <p className="text-fg-60 text-sm">No upcoming deadlines found.</p>
+            )}
           </div>
         </div>
       </div>

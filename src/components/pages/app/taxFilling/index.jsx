@@ -3,23 +3,30 @@ import { useSearchParams } from "react-router-dom";
 import { Calendar, TrendingUp, Calculator } from "lucide-react";
 import MonthTabs from "./MonthTabs";
 import ModeloCalculationCard from "./ModeloCalculationCard";
+import { getTaxDashboardDeadline } from "../../../../api/apiFunction/dashboardServices";
+import { getLatestCensusRecord } from "../../../../api/apiFunction/onboardingServices";
+
+const MODELO_LABELS = {
+  "115": "Modelo 115 – IRPF Rent Withholding",
+  "130": "Modelo 130 – IRPF Quarterly Payment",
+  "190": "Modelo 190 – IRPF Annual Summary",
+  "111": "Modelo 111 – IRPF Withholding (Payroll)",
+  "303": "Modelo 303 – VAT Declaration",
+  "390": "Modelo 390 – VAT Annual Summary",
+};
 
 const TaxFiling = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Get current user id from localStorage
   const user = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
   }, []);
   const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
-  // Build year list from user's created_at up to the current year
   const years = useMemo(() => {
     try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const startYear = user?.created_at
-        ? new Date(user.created_at).getFullYear()
-        : new Date().getFullYear();
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      const startYear = u?.created_at ? new Date(u.created_at).getFullYear() : new Date().getFullYear();
       const currentYear = new Date().getFullYear();
       const result = [];
       for (let y = startYear; y <= currentYear; y++) result.push(y);
@@ -60,6 +67,65 @@ const TaxFiling = () => {
   };
 
   const currentSemester = semesters.find(s => s.id === selectedSemester);
+
+  // Fetch modelos from deadlines API (uses legacy /{user_id} endpoint)
+  const [censusModelos, setCensusModelos] = useState([]); // [{ modeloNo, modeloId }]
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!userId) return;
+      setDeadlinesLoading(true);
+      try {
+        const [deadlineData, censusData] = await Promise.all([
+          getTaxDashboardDeadline(),
+          getLatestCensusRecord(),
+        ]);
+        // Build modelo_number -> internal _id map from census periodic_tax_obligations
+        const obligationMap = {};
+        if (Array.isArray(censusData?.periodic_tax_obligations)) {
+          censusData.periodic_tax_obligations.forEach((ob) => {
+            const num = ob?.modelo_number || ob?.modelo;
+            const id = ob?._id || ob?.id;
+            if (num && id) obligationMap[String(num)] = String(id);
+          });
+        }
+        const seen = new Set();
+        const modelos = [];
+        if (Array.isArray(deadlineData?.deadlines)) {
+          deadlineData.deadlines.forEach((d) => {
+            const num = d?.modelo;
+            if (num && !seen.has(num)) {
+              seen.add(num);
+              modelos.push({ modeloNo: num, modeloId: obligationMap[num] || num });
+            }
+          });
+        }
+        setCensusModelos(modelos);
+      } catch {
+        setCensusModelos([]);
+      } finally {
+        setDeadlinesLoading(false);
+      }
+    };
+    load();
+  }, [userId]);
+
+  // Annual modelos — always use full year range regardless of selected quarter
+  const ANNUAL_MODELOS = new Set(["190", "390"]);
+
+  const getQuarterDates = (semester) => {
+    const quarterStartMonth = (semester - 1) * 3;
+    return {
+      startDate: new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0],
+      endDate: new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0],
+    };
+  };
+
+  const getAnnualDates = () => ({
+    startDate: `${selectedYear}-01-01`,
+    endDate: `${selectedYear}-12-31`,
+  });
 
   return (
     <div className="flex-1 bg-bg-70 overflow-hidden">
@@ -207,9 +273,9 @@ const TaxFiling = () => {
               </div>
             </div>
 
-            {/* Tax Calculations Section */}
+            {/* Tax Calculations — only modelos from user's census data */}
             {selectedSemester !== 'annual' && (
-              <div className="mt-6">
+              <div className="mt-6 pb-8">
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-fg-40 flex items-center gap-2">
                     <Calculator className="w-5 h-5" />
@@ -219,38 +285,44 @@ const TaxFiling = () => {
                     Automated calculations for Q{selectedSemester} {selectedYear}
                   </p>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Modelo 303 - VAT */}
-                  <ModeloCalculationCard
-                    modeloNo="303"
-                    userId={userId}
-                    startDate={(() => {
-                      const quarterStartMonth = (selectedSemester - 1) * 3;
-                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
-                    })()}
-                    endDate={(() => {
-                      const quarterStartMonth = (selectedSemester - 1) * 3;
-                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
-                    })()}
-                    title="Modelo 303 - VAT Declaration"
-                  />
-                  
-                  {/* Modelo 130 - IRPF */}
-                  <ModeloCalculationCard
-                    modeloNo="130"
-                    userId={userId}
-                    startDate={(() => {
-                      const quarterStartMonth = (selectedSemester - 1) * 3;
-                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
-                    })()}
-                    endDate={(() => {
-                      const quarterStartMonth = (selectedSemester - 1) * 3;
-                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
-                    })()}
-                    title="Modelo 130 - IRPF Quarterly Payment"
-                  />
-                </div>
+
+                {deadlinesLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[...Array(2)].map((_, i) => (
+                      <div key={i} className="bg-bg-50 border border-bd-50 rounded-xl p-6 animate-pulse">
+                        <div className="h-5 w-40 bg-bg-40 rounded mb-3" />
+                        <div className="h-3 w-32 bg-bg-40 rounded mb-6" />
+                        <div className="h-16 bg-bg-40 rounded mb-3" />
+                        <div className="h-4 w-full bg-bg-40 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : censusModelos.length === 0 ? (
+                  <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 text-sm text-fg-60">
+                    No tax obligations found in your census record.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {censusModelos.map(({ modeloNo, modeloId }) => {
+                      const isAnnual = ANNUAL_MODELOS.has(modeloNo);
+                      const { startDate, endDate } = isAnnual
+                        ? getAnnualDates()
+                        : getQuarterDates(selectedSemester);
+                      return (
+                        <ModeloCalculationCard
+                          key={modeloNo}
+                          modeloNo={modeloNo}
+                          modeloId={modeloId}
+                          startDate={startDate}
+                          endDate={endDate}
+                          quarter={isAnnual ? undefined : selectedSemester}
+                          year={selectedYear}
+                          title={MODELO_LABELS[modeloNo] || `Modelo ${modeloNo}`}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

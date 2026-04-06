@@ -4,7 +4,7 @@
  */
 
 import { httpGet, httpPost } from "../../utils/httpMethods";
-import { TAX_CALCULATION_URL } from "../restEndpoint";
+import { TAX_CALCULATION_URL, TAX_ENGINE_URL } from "../restEndpoint";
 
 /**
  * Get VAT summary for a period (Modelo 303)
@@ -255,5 +255,36 @@ export const getTaxCalculationHealth = async () => {
   } catch (error) {
     console.error("Error checking tax calculation health:", error);
     throw error;
+  }
+};
+
+/**
+ * Calculate tax for a specific modelo using the tax engine
+ * @param {Object} params
+ * @param {string} params.modeloNo - Modelo number (e.g. "115", "130", "303")
+ * @param {string} params.startDate - Period start date (YYYY-MM-DD)
+ * @param {string} params.endDate - Period end date (YYYY-MM-DD)
+ * @param {number} params.year - Tax year
+ * @param {string} params.quarter - Quarter string e.g. "Q1"
+ * @param {string} [params.userId] - Optional organization/user ID
+ * @returns {Promise<Object>} Tax engine calculation result
+ */
+export const getTaxEngineCalculation = async ({ modeloNo, startDate, endDate, year, quarter, userId }) => {
+  try {
+    const payload = {
+      period: `${startDate}/${endDate}`,
+      year: year ?? new Date(startDate).getFullYear(),
+      quarter: quarter ?? `Q${Math.floor(new Date(startDate).getMonth() / 3) + 1}`,
+    };
+    if (userId) payload.organization_id = userId;
+
+    const response = await httpPost({
+      url: `${TAX_ENGINE_URL}/${modeloNo}/calculate`,
+      payload,
+    });
+    return response?.data;
+  } catch (error) {
+    console.error(`Error fetching tax engine calculation for modelo ${modeloNo}:`, error);
+    return null;
   }
 };

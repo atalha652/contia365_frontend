@@ -453,9 +453,13 @@ const Onboarding = () => {
                 <div />
               )}
               {aeatStep === 3 && uploadedFile ? (
-                <Button onClick={handleAEATComplete} disabled={isLoading || isUploading}>
+                <button
+                  onClick={handleAEATComplete}
+                  disabled={isLoading || isUploading}
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+                >
                   {isLoading ? "Completing..." : "Complete Verification"}
-                </Button>
+                </button>
               ) : aeatStep < 3 ? (
                 <div className="text-xs text-slate-500 text-center">
                   Follow the steps above to continue

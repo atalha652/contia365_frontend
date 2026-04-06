@@ -47,6 +47,7 @@ const Ledger = () => {
   // Local UI controls: search and status filter
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
+  const [timeFilter, setTimeFilter] = useState("All Time"); // New time filter state
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSection, setPanelSection] = useState(null);
   const [panelEntry, setPanelEntry] = useState(null);
@@ -173,7 +174,7 @@ const Ledger = () => {
     return ["All Status", ...Array.from(set).sort()];
   }, [entries]);
 
-  // Filter entries based on search and selected transaction type
+  // Filter entries based on search, transaction type, and time period
   const filtered = useMemo(() => {
     let list = entries;
     const q = searchQuery.trim().toLowerCase();
@@ -192,8 +193,29 @@ const Ledger = () => {
     if (statusFilter !== "All Status") {
       list = list.filter((e) => String(e?.invoice_data?.transaction_type || "").toUpperCase() === String(statusFilter).toUpperCase());
     }
+    
+    // Apply time filter
+    if (timeFilter !== "All Time") {
+      const now = new Date();
+      list = list.filter((e) => {
+        const createdAt = new Date(e?.created_at);
+        if (isNaN(createdAt.getTime())) return false;
+        
+        if (timeFilter === "This Week") {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 7);
+          return createdAt >= weekAgo;
+        } else if (timeFilter === "This Month") {
+          const monthAgo = new Date(now);
+          monthAgo.setMonth(now.getMonth() - 1);
+          return createdAt >= monthAgo;
+        }
+        return true;
+      });
+    }
+    
     return list;
-  }, [entries, searchQuery, statusFilter]);
+  }, [entries, searchQuery, statusFilter, timeFilter]);
 
   // Compute totals across filtered rows for display purposes
   const totals = useMemo(() => {
@@ -269,6 +291,15 @@ const Ledger = () => {
               <Input type="text" placeholder="Search Suppliers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
 
+            {/* Time Period Filter */}
+            <div className="w-44">
+              <Select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)}>
+                <option value="All Time">All Time</option>
+                <option value="This Week">This Week</option>
+                <option value="This Month">This Month</option>
+              </Select>
+            </div>
+
             {/* Status Filter using the themed Select */}
             <div className="w-44">
               <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -293,6 +324,8 @@ const Ledger = () => {
               // Build CSV from filtered entries
               const header = [
                 "Invoice #",
+                "Modelo ID",
+                "Modelo Confidence",
                 "Supplier",
                 "Customer",
                 "Items Count",
@@ -307,6 +340,8 @@ const Ledger = () => {
                 const sup = e?.invoice_data?.supplier?.business_name || "";
                 const cus = e?.invoice_data?.customer?.company_name || "";
                 const inv = e?.invoice_data?.invoice?.invoice_number || "";
+                const modeloId = e?.ai_modelo_id || "";
+                const modeloConf = e?.ai_modelo_confidence ? (e.ai_modelo_confidence * 100).toFixed(0) + "%" : "";
                 const total = e?.invoice_data?.totals?.total ?? 0;
                 const vatRate = e?.invoice_data?.totals?.VAT_rate ?? "";
                 const vatAmount = e?.invoice_data?.totals?.VAT_amount ?? 0;
@@ -316,6 +351,8 @@ const Ledger = () => {
                 const itemsCount = Array.isArray(e?.invoice_data?.items) ? e.invoice_data.items.length : 0;
                 return [
                   inv,
+                  modeloId,
+                  modeloConf,
                   sup,
                   cus,
                   itemsCount,
@@ -366,6 +403,8 @@ const Ledger = () => {
               </TableHead>
               {/* Put Invoice # first and remove internal ids */}
               <TableHead className="whitespace-nowrap">Invoice #</TableHead>
+              <TableHead className="whitespace-nowrap">Modelo ID</TableHead>
+              <TableHead className="whitespace-nowrap">Confidence</TableHead>
               <TableHead className="whitespace-nowrap">Supplier</TableHead>
               <TableHead className="whitespace-nowrap">Customer</TableHead>
               <TableHead className="whitespace-nowrap">Items</TableHead>
@@ -395,6 +434,14 @@ const Ledger = () => {
                       <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
                       <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
                     </div>
+                  </TableCell>
+                  {/* Modelo ID skeleton */}
+                  <TableCell>
+                    <div className="h-6 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* Confidence skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
                   </TableCell>
                   {/* Supplier skeleton */}
                   <TableCell>
@@ -473,6 +520,26 @@ const Ledger = () => {
                     <span className="text-sm text-fg-60 whitespace-nowrap">{e?.invoice_data?.invoice?.invoice_number || "-"}</span>
                   </div>
                 </TableCell>
+                {/* Modelo ID badge */}
+                <TableCell>
+                  {e?.ai_modelo_id ? (
+                    <Badge variant="info" className="font-mono">
+                      {e.ai_modelo_id}
+                    </Badge>
+                  ) : (
+                    <span className="text-sm text-fg-60">-</span>
+                  )}
+                </TableCell>
+                {/* Confidence percentage in separate column */}
+                <TableCell>
+                  {e?.ai_modelo_confidence ? (
+                    <span className="text-sm text-fg-60">
+                      {(e.ai_modelo_confidence * 100).toFixed(0)}%
+                    </span>
+                  ) : (
+                    <span className="text-sm text-fg-60">-</span>
+                  )}
+                </TableCell>
                 {/* Supplier name with info icon placed on the left */}
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -537,8 +604,8 @@ const Ledger = () => {
 
             {filtered.length === 0 && (
               <TableRow>
-                {/* Adjusted colSpan to 12 to match headers (added checkbox column) */}
-                <TableCell className="text-center" colSpan={12}>
+                {/* Adjusted colSpan to 14 to match headers (added Confidence column) */}
+                <TableCell className="text-center" colSpan={14}>
                   <span className="text-sm text-fg-60">No ledger entries match your filters.</span>
                 </TableCell>
               </TableRow>

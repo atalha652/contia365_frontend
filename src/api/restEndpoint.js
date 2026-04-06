@@ -1,4 +1,9 @@
-export const SERVER_PATH = import.meta.env.VITE_APP_API_URL;
+// Empty or unset VITE_APP_API_URL => relative "/api/..." (use with Vite dev proxy to avoid CORS).
+const _apiBase = import.meta.env.VITE_APP_API_URL;
+export const SERVER_PATH =
+  _apiBase == null || String(_apiBase).trim() === ""
+    ? ""
+    : String(_apiBase).replace(/\/$/, "");
 
 // Auth End Points
 export const AUTH_URL = `${SERVER_PATH}/api/auth`;
@@ -30,5 +35,19 @@ export const GMAIL_URL = `${SERVER_PATH}/api/gmail`;
 // Bank End Points
 // Base URL for bank operations (accounts, transactions, import, matching)
 export const BANK_URL = `${SERVER_PATH}/api/bank`;
+
+// Onboarding End Points
+export const ONBOARDING_URL = `${SERVER_PATH}/api/onboarding`;
+
+// Census Data End Points
+export const CENSUS_URL = `${SERVER_PATH}/api/census-data`;
+
+// Tax dashboard deadline endpoint
+export const TAX_DASHBOARD_URL = `${SERVER_PATH}/api/tax-dashboard`;
+
+// Tax Calculation End Points
+// Base URL for tax calculation APIs (VAT, IRPF, modelo calculations, auto-mapping)
+export const TAX_CALCULATION_URL = `${SERVER_PATH}/api/tax`;
+
 
 

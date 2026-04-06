@@ -1,11 +1,34 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Calendar, TrendingUp } from "lucide-react";
+import { Calendar, TrendingUp, Calculator } from "lucide-react";
 import MonthTabs from "./MonthTabs";
+import ModeloCalculationCard from "./ModeloCalculationCard";
 
 const TaxFiling = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const years = [2024, 2025];
+
+  // Get current user id from localStorage
+  const user = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("user") || "{}"); } catch { return {}; }
+  }, []);
+  const userId = user?.id || user?._id || user?.user_id || user?.uid;
+
+  // Build year list from user's created_at up to the current year
+  const years = useMemo(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const startYear = user?.created_at
+        ? new Date(user.created_at).getFullYear()
+        : new Date().getFullYear();
+      const currentYear = new Date().getFullYear();
+      const result = [];
+      for (let y = startYear; y <= currentYear; y++) result.push(y);
+      return result;
+    } catch {
+      return [new Date().getFullYear()];
+    }
+  }, []);
+
   const semesters = [
     { id: 1, label: "Q1", fullLabel: "1st Quarter", months: "Jan - Mar", color: "from-blue-500 to-cyan-500" },
     { id: 2, label: "Q2", fullLabel: "2nd Quarter", months: "Apr - Jun", color: "from-green-500 to-emerald-500" },
@@ -16,13 +39,15 @@ const TaxFiling = () => {
   // Initialize selected year from URL or default to current year
   const [selectedYear, setSelectedYear] = useState(() => {
     const yearParam = searchParams.get("year");
-    return yearParam ? parseInt(yearParam) : 2024;
+    return yearParam ? parseInt(yearParam) : new Date().getFullYear();
   });
 
-  // Initialize selected semester from URL or default to 1
+  // Initialize selected semester from URL or default to current quarter
   const [selectedSemester, setSelectedSemester] = useState(() => {
     const semesterParam = searchParams.get("semester");
-    return semesterParam ? (semesterParam === 'annual' ? 'annual' : parseInt(semesterParam)) : 1;
+    if (semesterParam) return semesterParam === 'annual' ? 'annual' : parseInt(semesterParam);
+    // Default to current quarter based on today's month
+    return Math.floor(new Date().getMonth() / 3) + 1;
   });
 
   // Update URL when year or semester changes
@@ -181,6 +206,53 @@ const TaxFiling = () => {
                 </div>
               </div>
             </div>
+
+            {/* Tax Calculations Section */}
+            {selectedSemester !== 'annual' && (
+              <div className="mt-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-fg-40 flex items-center gap-2">
+                    <Calculator className="w-5 h-5" />
+                    Tax Calculations
+                  </h2>
+                  <p className="text-sm text-fg-60 mt-1">
+                    Automated calculations for Q{selectedSemester} {selectedYear}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Modelo 303 - VAT */}
+                  <ModeloCalculationCard
+                    modeloNo="303"
+                    userId={userId}
+                    startDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
+                    })()}
+                    endDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
+                    })()}
+                    title="Modelo 303 - VAT Declaration"
+                  />
+                  
+                  {/* Modelo 130 - IRPF */}
+                  <ModeloCalculationCard
+                    modeloNo="130"
+                    userId={userId}
+                    startDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth, 1).toISOString().split('T')[0];
+                    })()}
+                    endDate={(() => {
+                      const quarterStartMonth = (selectedSemester - 1) * 3;
+                      return new Date(selectedYear, quarterStartMonth + 3, 0).toISOString().split('T')[0];
+                    })()}
+                    title="Modelo 130 - IRPF Quarterly Payment"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

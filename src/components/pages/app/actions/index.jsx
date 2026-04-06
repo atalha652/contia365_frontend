@@ -159,17 +159,29 @@ const Actions = () => {
               <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
             </Button> */}
 
-            {/* Bulk OCR button: runs OCR for selected voucher IDs only */}
+            {/* Bulk OCR button: runs OCR for selected voucher IDs only, excluding those with "done" status */}
             <Button
               variant="primary"
               disabled={selectedIds.length === 0 || bulkSending}
               className="whitespace-nowrap"
               onClick={async () => {
                 if (!userId || selectedIds.length === 0) return;
+                
+                // Filter out vouchers that already have "done" status
+                const vouchersToProcess = selectedIds.filter(id => {
+                  const voucher = normalized.find(v => v.id === id);
+                  return voucher && voucher.ocr_status !== "done";
+                });
+                
+                if (vouchersToProcess.length === 0) {
+                  toast.info("All selected vouchers already have OCR completed");
+                  return;
+                }
+                
                 try {
                   setBulkSending(true);
-                  const res = await runVoucherOCR({ user_id: userId, voucher_ids: selectedIds });
-                  toast.success("OCR processing started");
+                  const res = await runVoucherOCR({ user_id: userId, voucher_ids: vouchersToProcess });
+                  toast.success(`OCR processing started for ${vouchersToProcess.length} voucher(s)`);
                   // Optional: basic follow-up fetch to reflect any immediate status changes
                   setTimeout(async () => {
                     await fetchVouchers();
@@ -303,10 +315,10 @@ const Actions = () => {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {/* Per-row OCR button: only disable the clicked row while processing */}
+                  {/* Per-row OCR button: disable if OCR status is "done" or if currently processing */}
                   <Button
                     variant="primary"
-                    disabled={rowSendingIds.includes(item.id)}
+                    disabled={rowSendingIds.includes(item.id) || item.ocr_status === "done"}
                     onClick={async () => {
                       if (!userId) return;
                       try {
@@ -324,7 +336,7 @@ const Actions = () => {
                       }
                     }}
                   >
-                    Run OCR
+                    {item.ocr_status === "done" ? "OCR Done" : "Run OCR"}
                   </Button>
                 </TableCell>
               </TableRow>

@@ -24,8 +24,8 @@ const SignUp = () => {
 
   // wizard state - restructured for new flow
   const [currentStep, setCurrentStep] = useState(0);
-  const [hasCertificate, setHasCertificate] = useState(null); // true | false | null
-  const [profileType, setProfileType] = useState(null); // 'personal' | 'company' | null
+  const [hasCertificate, setHasCertificate] = useState(false); // default signup flow without certificate question
+  const [profileType, setProfileType] = useState("personal"); // default flow without profile selection step
   const [administrationType, setAdministrationType] = useState("individual"); // 'joint' | 'individual'
   const [isAdministrator, setIsAdministrator] = useState(true);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
@@ -96,9 +96,12 @@ const SignUp = () => {
     form.append("name", formData.name || "");
     form.append("email", formData.email || "");
     form.append("password", formData.password || "");
-    form.append("type", userType);
     form.append("phone", formData.phone || "");
+    form.append("type", userType);
     form.append("tax_id", formData.tax_id || "");
+    if (userType === "organization") {
+      form.append("company_name", formData.organization_info.company_name || "");
+    }
     form.append("registration_flow", registrationFlow);
     form.append("role", "user");
     form.append("has_digital_certificate", hasFlow || "");
@@ -131,17 +134,15 @@ const SignUp = () => {
     } else {
       form.append("other_certificate", "");
     }
-    form.append("payment_method", isPaymentConfirmed ? "Stripe" : "");
+    const pmMap = { stripe: "Stripe", redsys: "Redsys", bizum: "Bizum" };
+    form.append("payment_method", isPaymentConfirmed && paymentMethod ? (pmMap[paymentMethod] || "") : "");
     return form;
   };
 
   const steps = useMemo(() => {
     if (hasCertificate === true) {
       // YES Flow with assistance path
-      const baseSteps = [
-        { key: "cert-question", label: "Verfication" },
-        { key: "membership-check", label: "Assistance Offer" },
-      ];
+      const baseSteps = [{ key: "membership-check", label: "Membership Check" }];
 
       // If certificate ID correct but email wrong -> assistance flow
       if (isMembershipValid === "assistance") {
@@ -178,54 +179,24 @@ const SignUp = () => {
 
       return baseSteps;
     } else if (hasCertificate === false) {
-      // NO Flow: Certificate → Assistance Offer → Profile/Application Type → Personal/Company → Payment → Complete
-      const flowSteps = [
-        { key: "cert-question", label: "Create Profile" },
-        { key: "assistance-offer", label: "Assistance Offer" },
-      ];
+      // NO Flow: Profile/Application Type → Personal/Company → Complete
+      const flowSteps = [];
 
-      if (assistanceChoice === "help") {
-        flowSteps.push({
-          key: "choose-application-type",
-          label: "Application Type",
-        });
-
-        if (applicationType === "personal") {
-          flowSteps.push(
-            { key: "personal-details", label: "Personal Info" },
-            { key: "assistance-payment", label: "Payment" }
-          );
-        } else if (applicationType === "company") {
-          flowSteps.push(
-            { key: "company-details", label: "Company Info" },
-            { key: "assistance-payment", label: "Payment" }
-          );
-        }
-      } else if (assistanceChoice === "myself") {
-        // User will be redirected to NADRA, no additional steps needed
-      } else {
-        // Default flow if no assistance choice made yet
-        flowSteps.push({ key: "profile-select", label: "Profile Type" });
-
-        if (profileType === "personal") {
-          flowSteps.push(
-            { key: "personal-details", label: "Personal Info" },
-            { key: "payment", label: "Payment" },
-            { key: "complete", label: "Complete" }
-          );
-        } else if (profileType === "company") {
-          flowSteps.push(
-            { key: "company-details", label: "Company Info" },
-            { key: "payment", label: "Payment" },
-            { key: "complete", label: "Complete" }
-          );
-        }
+      if (profileType === "personal") {
+        flowSteps.push(
+          { key: "personal-details", label: "Personal Info" },
+          // { key: "payment", label: "Payment" },
+          { key: "complete", label: "Complete" }
+        );
+      } else if (profileType === "company") {
+        flowSteps.push(
+          { key: "company-details", label: "Company Info" },
+          // { key: "payment", label: "Payment" },
+          { key: "complete", label: "Complete" }
+        );
       }
 
       return flowSteps;
-    } else {
-      // Initial state
-      return [{ key: "cert-question", label: "Certificate" }];
     }
   }, [
     hasCertificate,
@@ -369,14 +340,6 @@ const SignUp = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const stepKey = steps[currentStep]?.key;
 
-    // Step 1: Certificate question
-    if (stepKey === "cert-question") {
-      if (hasCertificate === null) {
-        setError("Please select whether you have a digital certificate");
-        return false;
-      }
-    }
-
     // YES Flow validations
     if (stepKey === "membership-check") {
       if (!certificateId || certificateId.trim() === "") {
@@ -431,29 +394,21 @@ const SignUp = () => {
       }
     }
 
-    // NO Flow validations
-    if (stepKey === "profile-select") {
-      if (!profileType) {
-        setError("Please select your profile type (Personal or Company)");
-        return false;
-      }
-    }
-
     if (stepKey === "personal-details") {
-      if (!formData.name || !formData.tax_id) {
-        setError("Full name and DNI/NIE are required");
+      if (!formData.name || formData.name.trim() === "") {
+        setError("Full name is required");
         return false;
       }
       if (!formData.email || !emailRegex.test(formData.email)) {
         setError("Valid email is required");
         return false;
       }
-      if (!formData.phone) {
+      if (!formData.phone || formData.phone.trim() === "") {
         setError("Phone number is required");
         return false;
       }
-      if (!formData.bank_iban || !formData.bank_account_holder) {
-        setError("Bank details (IBAN and account holder) are required");
+      if (!formData.password || formData.password.length < 6) {
+        setError("Password must be at least 6 characters long");
         return false;
       }
     }
@@ -536,8 +491,8 @@ const SignUp = () => {
       const form = buildRegistrationFormData();
       const response = await signUp(form);
       if (response.status === 201 || response.status === 200) {
-        toast.success("Registration successful! Please login to continue.");
-        navigate("/sign-in");
+        toast.success("Registration successful! Please complete your profile.");
+        navigate("/onboarding");
       } else {
         const errorMessage =
           response.data?.detail ||
@@ -879,112 +834,6 @@ const SignUp = () => {
           </div>
         );
 
-      case "assistance-offer":
-        return (
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                Assistance Offer
-              </h3>
-              <p className="text-slate-600">
-                This procedure is free if you do it yourself. If you want us to
-                handle it, there is a processing fee.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setAssistanceChoice("myself");
-                  // Redirect to NADRA website
-                  window.open("https://id.nadra.gov.pk/e-id/", "_blank");
-                }}
-                className="group relative px-6 py-6 rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:border-green-500 hover:shadow-md transition-all duration-200"
-              >
-                <div className="flex flex-col items-center">
-                  <svg
-                    className="w-8 h-8 text-green-600 mb-3"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  <span className="font-bold text-lg">Do it yourself</span>
-                  <span className="text-sm mt-1 text-green-600">Free</span>
-                  <p className="text-xs mt-2 opacity-80">Self-service option</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAssistanceChoice("help");
-                }}
-                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
-                  assistanceChoice === "help"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                }`}
-              >
-                <div className="flex flex-col items-center">
-                  <svg
-                    className={`w-8 h-8 mb-3 ${
-                      assistanceChoice === "help"
-                        ? "text-white"
-                        : "text-[#027570]"
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span className="font-bold text-lg">Yes, I Need Help</span>
-                  <span
-                    className={`text-sm mt-1 ${
-                      assistanceChoice === "help"
-                        ? "text-orange-100"
-                        : "text-orange-600"
-                    }`}
-                  >
-                    Processing Fee
-                  </span>
-                  <p className="text-xs mt-2 opacity-80">
-                    We handle everything for you
-                  </p>
-                </div>
-              </button>
-            </div>
-          </div>
-        );
-
       case "choose-application-type":
         return (
           <div className="space-y-6">
@@ -1110,124 +959,6 @@ const SignUp = () => {
           </div>
         );
 
-      case "profile-select":
-        return (
-          <div className="space-y-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                Profile Type
-              </h3>
-              <p className="text-slate-600">
-                Are you registering as an individual or a company?
-              </p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileType("personal");
-                  setCurrentStep(2);
-                }}
-                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
-                  profileType === "personal"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                }`}
-              >
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-center mb-3">
-                    <svg
-                      className={`w-8 h-8 ${
-                        profileType === "personal"
-                          ? "text-white"
-                          : "text-[#027570]"
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                      />
-                    </svg>
-                  </div>
-                  <span className="font-bold text-lg">Personal</span>
-                  <span
-                    className={`text-sm mt-1 ${
-                      profileType === "personal"
-                        ? "text-teal-100"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    Individual account - Faster process
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setProfileType("company");
-                  setCurrentStep(2);
-                }}
-                className={`group relative px-6 py-6 rounded-xl border-2 transition-all duration-200 ${
-                  profileType === "company"
-                    ? "border-[#027570] bg-gradient-to-r from-[#027570] to-[#038a84] text-white shadow-lg"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
-                }`}
-              >
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-center mb-3">
-                    <svg
-                      className={`w-8 h-8 ${
-                        profileType === "company"
-                          ? "text-white"
-                          : "text-[#027570]"
-                      }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                      />
-                    </svg>
-                  </div>
-                  <span className="font-bold text-lg">Company</span>
-                  <span
-                    className={`text-sm mt-1 ${
-                      profileType === "company"
-                        ? "text-teal-100"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    Business account - May require multiple certificates
-                  </span>
-                </div>
-              </button>
-            </div>
-          </div>
-        );
       case "personal-details":
         return (
           <div className="space-y-6">
@@ -1265,17 +996,6 @@ const SignUp = () => {
                 placeholder="John Doe"
               />
               <TextInput
-                id="tax_id"
-                label="DNI/NIE"
-                value={formData.tax_id}
-                onChange={(e) => updateField("tax_id", e.target.value)}
-                required
-                placeholder="00000000A"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TextInput
                 id="email"
                 label="Email"
                 type="email"
@@ -1283,6 +1003,18 @@ const SignUp = () => {
                 onChange={(e) => updateField("email", e.target.value)}
                 required
                 placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TextInput
+                id="phone"
+                label="Phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => updateField("phone", e.target.value)}
+                required
+                placeholder="+34 600 000 000"
               />
               <TextInput
                 id="password"
@@ -1294,13 +1026,13 @@ const SignUp = () => {
                 placeholder="*********"
               />
             </div>
+
             <TextInput
-              id="phone"
-              label="Phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+34 600 000 000"
+              id="tax_id"
+              label="DNI/NIE"
+              value={formData.tax_id}
+              onChange={(e) => updateField("tax_id", e.target.value)}
+              placeholder="00000000A"
             />
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
@@ -1327,7 +1059,7 @@ const SignUp = () => {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            {/* <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-start">
                 <svg
                   className="w-5 h-5 text-blue-500 mr-2 mt-0.5"
@@ -1352,7 +1084,7 @@ const SignUp = () => {
                   </p>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         );
       case "company-details":
@@ -2294,7 +2026,7 @@ const SignUp = () => {
                 Registration Complete!
               </h3>
               <p className="text-slate-600">
-                Your certificate request has been submitted successfully
+                Your account details are ready for final submission
               </p>
             </div>
 
@@ -2315,7 +2047,7 @@ const SignUp = () => {
                     />
                   </svg>
                   <span className="text-green-800 font-medium">
-                    Payment processed (€20)
+                    Your registration details are validated
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -2333,7 +2065,7 @@ const SignUp = () => {
                     />
                   </svg>
                   <span className="text-green-800 font-medium">
-                    FNMT connection initiated
+                    Your account setup is prepared
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -2351,7 +2083,7 @@ const SignUp = () => {
                     />
                   </svg>
                   <span className="text-green-800 font-medium">
-                    AEAT appointment scheduled
+                    Ready to create your account
                   </span>
                 </div>
               </div>
@@ -2377,9 +2109,9 @@ const SignUp = () => {
                     What's Next?
                   </p>
                   <p className="text-blue-700 text-sm mt-1">
-                    You'll receive an email with your appointment details and
-                    further instructions. You can track your certificate status
-                    in your dashboard.
+                    Accept the terms and click the final button to create your
+                    account. After submission, you will be redirected to the
+                    onboarding flow.
                   </p>
                 </div>
               </div>

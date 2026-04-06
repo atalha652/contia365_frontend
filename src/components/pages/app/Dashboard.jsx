@@ -2,9 +2,36 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BarChart3, Calendar, DollarSign, Wallet } from "lucide-react";
 // Import services to fetch dashboard stats and summary
-import { getDashboardStats, getDashboardSummary } from "../../../api/apiFunction/dashboardServices";
+import { getDashboardStats, getDashboardSummary, getTaxDashboardDeadline } from "../../../api/apiFunction/dashboardServices";
+import MonthTabs from "./taxFilling/MonthTabs";
+import VATSummaryWidget from "./dashboard/VATSummaryWidget";
+import IRPFSummaryWidget from "./dashboard/IRPFSummaryWidget";
 
 const Dashboard = () => {
+  const { currentYear, currentQuarterId, currentMonthStart, currentMonthEnd, currentQuarterStart, currentQuarterEnd } = useMemo(() => {
+    const now = new Date();
+    const monthIndex = now.getMonth(); // 0-11
+    const quarterId = Math.floor(monthIndex / 3) + 1; // 1-4
+    
+    // Current month dates
+    const monthStart = new Date(now.getFullYear(), monthIndex, 1);
+    const monthEnd = new Date(now.getFullYear(), monthIndex + 1, 0);
+    
+    // Current quarter dates
+    const quarterStartMonth = (quarterId - 1) * 3;
+    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+    const quarterEnd = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+    
+    return {
+      currentYear: now.getFullYear(),
+      currentQuarterId: quarterId,
+      currentMonthStart: monthStart.toISOString().split('T')[0],
+      currentMonthEnd: monthEnd.toISOString().split('T')[0],
+      currentQuarterStart: quarterStart.toISOString().split('T')[0],
+      currentQuarterEnd: quarterEnd.toISOString().split('T')[0],
+    };
+  }, []);
+
   // Helper: Format dates in a readable short format
   const formatDateTime = (value) => {
     if (!value) return "";
@@ -48,6 +75,7 @@ const Dashboard = () => {
   // Store summary and detailed stats from backend
   const [summary, setSummary] = useState({});
   const [stats, setStats] = useState({});
+  const [taxDeadline, setTaxDeadline] = useState(null);
 
   // Simple English: Fetch summary and stats when user id is available
   useEffect(() => {
@@ -56,12 +84,20 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
         setError("");
-        const [sum, st] = await Promise.all([
+        const [sumRes, stRes, taxRes] = await Promise.allSettled([
           getDashboardSummary({ userId }),
-          getDashboardStats({ userId })
+          getDashboardStats({ userId }),
+          getTaxDashboardDeadline({ userId })
         ]);
-        setSummary(sum || {});
-        setStats(st || {});
+
+        if (sumRes.status === "fulfilled") setSummary(sumRes.value || {});
+        else setSummary({});
+
+        if (stRes.status === "fulfilled") setStats(stRes.value || {});
+        else setStats({});
+
+        if (taxRes.status === "fulfilled") setTaxDeadline(taxRes.value || null);
+        else setTaxDeadline(null);
       } catch (err) {
         const message = err?.response?.data?.detail || err.message || "Failed to load dashboard";
         setError(message);
@@ -184,6 +220,25 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* Tax Summary Widgets */}
+        <div className="py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <VATSummaryWidget
+              startDate={currentMonthStart}
+              endDate={currentMonthEnd}
+              userId={userId}
+              title="VAT Summary (Current Month)"
+            />
+            <IRPFSummaryWidget
+              startDate={currentQuarterStart}
+              endDate={currentQuarterEnd}
+              quarter={currentQuarterId}
+              userId={userId}
+              title="IRPF Summary (Current Quarter)"
+            />
+          </div>
+        </div>
+
         {/* Recent Activity redesign: single-row sub cards with one badge */}
         <div className="py-4">
           <div className="bg-bg-50 border border-bd-50 rounded-xl p-6">
@@ -227,6 +282,34 @@ const Dashboard = () => {
               ) : (
                 <p className="text-fg-60 text-sm">No activity yet. Use Vouchers to get started.</p>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar: same annual quarter view as tax filings */}
+        <div className="py-4">
+          <div className="bg-bg-50 border border-bd-50 rounded-xl p-6">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-base font-semibold text-fg-50">Upcoming Deadlines</h3>
+                <p className="text-sm text-fg-60 mt-1">Quarterly overview ({currentYear})</p>
+              </div>
+              <div className="w-10 h-10 bg-bg-70 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-5 h-5 text-fg-50" strokeWidth={1.5} />
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-bg-60 to-bg-70 rounded-2xl border border-bd-50 overflow-hidden">
+              <div className="p-6">
+                <MonthTabs
+                  semester="annual"
+                  year={currentYear}
+                  disableUrlSync={true}
+                  defaultQuarterId={currentQuarterId}
+                  contentMode="dates"
+                  deadlineInfo={taxDeadline}
+                />
+              </div>
             </div>
           </div>
         </div>

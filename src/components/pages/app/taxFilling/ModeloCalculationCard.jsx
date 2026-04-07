@@ -1,36 +1,28 @@
 /**
- * Modelo Calculation Card
- * Renders tax engine results for modelos: 115, 130, 303, 111, 190, 390
- *
- * Response shapes (from /api/tax-engine/{modelo}/calculate):
- *  115 → { modelo, period, year, quarter, totals: { total_rent_base, retention_rate, withholding_payable }, status, transactions_count, calculated_at }
- *  130 → { modelo, period, year, quarter, totals: { gross_income, deductible_expenses, net_income, irpf_rate, irpf_to_pay, previous_payments }, status, transactions_count, calculated_at }
- *  303 → { modelo, period, year, quarter, totals: { output_vat, input_vat, vat_payable, vat_by_rate }, status, transactions_count, calculated_at }
- *  111 → { modelo, period, year, quarter, totals: { total_payroll_base, retention_rate, withholding_payable }, status, transactions_count, calculated_at }
- *  190 → { modelo, period, year, totals: { total_payroll_base, total_withholding, total_income }, status, transactions_count, calculated_at }
- *  390 → { modelo, period, year, totals: { total_output_vat, total_input_vat, annual_vat_payable }, status, transactions_count, calculated_at }
+ * ModeloCalculationCard
+ * Renders tax engine results passed in as props (no internal fetching).
+ * Priority: liveResult > savedReport > empty state
  */
-
-import { useEffect, useState } from "react";
-import { FileText, TrendingUp, Calculator, Download, Building2, Receipt } from "lucide-react";
-import { getModeloCalculation, getTaxEngineCalculation } from "../../../../api/apiFunction/taxCalculationServices";
+import { useState } from "react";
+import { FileText, TrendingUp, Calculator, Download, Building2, Receipt, ChevronDown } from "lucide-react";
+import { updateTaxReportStatus } from "../../../../api/apiFunction/taxCalculationServices";
 
 const fmt = (val) =>
   `€${Number(val || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`;
 
 const pct = (val) => `${(Number(val || 0) * 100).toFixed(0)}%`;
 
-// ── per-modelo colour / icon config ──────────────────────────────────────────
 const MODELO_CONFIG = {
-  "115": { color: "from-purple-500 to-violet-600",   badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",  Icon: Building2 },
-  "130": { color: "from-orange-500 to-amber-500",    badge: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",   Icon: Calculator },
-  "303": { color: "from-red-500 to-rose-600",        badge: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",               Icon: TrendingUp },
-  "111": { color: "from-blue-500 to-cyan-500",       badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",           Icon: Receipt },
-  "190": { color: "from-indigo-500 to-blue-600",     badge: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",   Icon: Receipt },
-  "390": { color: "from-teal-500 to-emerald-600",    badge: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",           Icon: TrendingUp },
+  "115": { color: "from-purple-500 to-violet-600",  badge: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",  Icon: Building2 },
+  "130": { color: "from-orange-500 to-amber-500",   badge: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",   Icon: Calculator },
+  "303": { color: "from-red-500 to-rose-600",       badge: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",               Icon: TrendingUp },
+  "111": { color: "from-blue-500 to-cyan-500",      badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",           Icon: Receipt },
+  "190": { color: "from-indigo-500 to-blue-600",    badge: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",   Icon: Receipt },
+  "390": { color: "from-teal-500 to-emerald-600",   badge: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",           Icon: TrendingUp },
 };
 
-// ── small reusable row ────────────────────────────────────────────────────────
+const REPORT_STATUSES = ["pending", "filed", "paid", "overdue"];
+
 const Row = ({ label, value, bold }) => (
   <div className={`flex items-center justify-between py-2 border-b border-bd-50 last:border-0 ${bold ? "font-semibold" : ""}`}>
     <span className={`text-sm ${bold ? "text-fg-50" : "text-fg-60"}`}>{label}</span>
@@ -38,78 +30,51 @@ const Row = ({ label, value, bold }) => (
   </div>
 );
 
-// ── main component ────────────────────────────────────────────────────────────
-const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, quarter, year }) => {
-  const [calculation, setCalculation] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onReportStatusChange }) => {
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  useEffect(() => {
-    const fetchCalculation = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        let data = await getTaxEngineCalculation({
-          modeloNo, startDate, endDate, userId,
-          year: year ?? new Date(startDate).getFullYear(),
-          quarter: quarter ? `Q${quarter}` : undefined,
-        });
-        if (!data) {
-          data = await getModeloCalculation({ modeloNo, startDate, endDate, userId });
-        }
-        setCalculation(data);
-      } catch (err) {
-        setError(err?.response?.data?.detail || `Failed to load Modelo ${modeloNo}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (modeloNo && startDate && endDate) fetchCalculation();
-  }, [modeloNo, startDate, endDate, userId, quarter, year]);
+  // Priority: live calculation > saved report > null
+  const calculation = liveResult ?? savedReport ?? null;
+  const isFromSavedReport = !liveResult && !!savedReport;
 
   const cfg = MODELO_CONFIG[modeloNo] ?? MODELO_CONFIG["303"];
+  const BadgeIcon = cfg.Icon;
 
-  // ── loading skeleton ────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 animate-pulse">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="h-5 w-40 bg-bg-40 rounded mb-2" />
-            <div className="h-3 w-32 bg-bg-40 rounded" />
-          </div>
-          <div className="w-10 h-10 bg-bg-70 rounded-xl" />
-        </div>
-        <div className="space-y-3">
-          <div className="h-16 bg-bg-40 rounded" />
-          <div className="h-4 w-full bg-bg-40 rounded" />
-          <div className="h-4 w-3/4 bg-bg-40 rounded" />
-        </div>
-      </div>
-    );
-  }
+  const handleStatusChange = async (newStatus) => {
+    const reportId = savedReport?._id || savedReport?.id;
+    if (!reportId) return;
+    setUpdatingStatus(true);
+    try {
+      await updateTaxReportStatus(reportId, newStatus);
+      onReportStatusChange?.();
+    } catch {
+      // silently fail
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
-  // ── error state ─────────────────────────────────────────────────────────────
-  if (error) {
+  // Empty state — no data yet
+  if (!calculation) {
     return (
-      <div className="bg-bg-50 border border-bd-50 rounded-xl p-6">
-        <div className="flex items-start justify-between mb-4">
+      <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 flex flex-col gap-3">
+        <div className="flex items-start justify-between">
           <div>
             <h3 className="text-base font-semibold text-fg-50">{title || `Modelo ${modeloNo}`}</h3>
-            <p className="text-xs text-fg-60 mt-1">Tax calculation</p>
+            <p className="text-xs text-fg-60 mt-1">No data yet — click Calculate Taxes</p>
           </div>
-          <FileText className="w-5 h-5 text-fg-50" />
+          <div className={`w-10 h-10 bg-gradient-to-br ${cfg.color} rounded-xl flex items-center justify-center opacity-40`}>
+            <FileText className="w-5 h-5 text-white" />
+          </div>
         </div>
-        <p className="text-sm text-red-500">{error}</p>
+        <div className="h-16 bg-bg-60 rounded-lg border border-bd-50 flex items-center justify-center text-xs text-fg-60">
+          Awaiting calculation
+        </div>
       </div>
     );
   }
 
-  if (!calculation) return null;
-
   const { totals = {} } = calculation;
-  const BadgeIcon = cfg.Icon;
 
   return (
     <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
@@ -117,10 +82,13 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, qu
       <div className="flex items-start justify-between mb-6">
         <div>
           <h3 className="text-base font-semibold text-fg-40">{title || `Modelo ${modeloNo}`}</h3>
-          <p className="text-xs text-fg-60 mt-1">
-            Modelo {calculation.modelo ?? modeloNo}
-            {calculation.quarter ? ` · ${calculation.quarter}` : ""}
-            {calculation.year ? ` · ${calculation.year}` : ""}
+          <p className="text-xs text-fg-60 mt-1 flex items-center gap-2">
+            <span>Modelo {calculation.modelo ?? modeloNo}</span>
+            {calculation.quarter && <span>· {calculation.quarter}</span>}
+            {calculation.year && <span>· {calculation.year}</span>}
+            {isFromSavedReport && (
+              <span className="px-1.5 py-0.5 rounded bg-bg-60 border border-bd-50 text-fg-60">saved</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -167,9 +135,7 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, qu
                   return (
                     <div key={rate} className="flex items-center justify-between text-sm">
                       <span className="text-fg-60">{rate}% VAT</span>
-                      <span className={`font-medium ${net >= 0 ? "text-red-500" : "text-green-500"}`}>
-                        {fmt(Math.abs(net))}
-                      </span>
+                      <span className={`font-medium ${net >= 0 ? "text-red-500" : "text-green-500"}`}>{fmt(Math.abs(net))}</span>
                     </div>
                   );
                 })}
@@ -195,12 +161,10 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, qu
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Gross Income"         value={fmt(totals.gross_income)} />
-            <Row label="Deductible Expenses"  value={fmt(totals.deductible_expenses)} />
-            <Row label="Net Income"           value={fmt(totals.net_income)} bold />
-            {totals.previous_payments > 0 && (
-              <Row label="Previous Payments"  value={fmt(totals.previous_payments)} />
-            )}
+            <Row label="Gross Income"        value={fmt(totals.gross_income)} />
+            <Row label="Deductible Expenses" value={fmt(totals.deductible_expenses)} />
+            <Row label="Net Income"          value={fmt(totals.net_income)} bold />
+            {totals.previous_payments > 0 && <Row label="Previous Payments" value={fmt(totals.previous_payments)} />}
           </div>
         </div>
       )}
@@ -221,8 +185,8 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, qu
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Total Rent Base"  value={fmt(totals.total_rent_base)} />
-            <Row label="Retention Rate"   value={pct(totals.retention_rate)} />
+            <Row label="Total Rent Base" value={fmt(totals.total_rent_base)} />
+            <Row label="Retention Rate"  value={pct(totals.retention_rate)} />
           </div>
         </div>
       )}
@@ -296,16 +260,27 @@ const ModeloCalculationCard = ({ modeloNo, startDate, endDate, title, userId, qu
       {/* Footer */}
       <div className="mt-4 pt-4 border-t border-bd-50 flex items-center justify-between text-xs text-fg-60">
         <span>{calculation.transactions_count ?? calculation.transaction_count ?? 0} transactions</span>
-        <span>
-          {calculation.status && (
-            <span className="capitalize mr-2 px-1.5 py-0.5 rounded bg-bg-60 border border-bd-50">
-              {calculation.status}
-            </span>
+        <div className="flex items-center gap-2">
+          {/* Status updater — only when there's a saved report */}
+          {savedReport && (
+            <div className="relative">
+              <select
+                value={savedReport?.status ?? "pending"}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                disabled={updatingStatus}
+                className="appearance-none pl-2 pr-6 py-0.5 rounded bg-bg-60 border border-bd-50 text-xs text-fg-60 focus:outline-none focus:ring-1 focus:ring-ac-02 disabled:opacity-50 cursor-pointer capitalize"
+              >
+                {REPORT_STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-fg-60 pointer-events-none" />
+            </div>
           )}
-          {calculation.calculated_at
-            ? `Calculated ${new Date(calculation.calculated_at).toLocaleDateString("es-ES")}`
-            : ""}
-        </span>
+          {calculation.calculated_at && (
+            <span>Calculated {new Date(calculation.calculated_at).toLocaleDateString("es-ES")}</span>
+          )}
+        </div>
       </div>
     </div>
   );

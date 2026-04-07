@@ -3,7 +3,7 @@
  * API functions for VAT and IRPF calculations, modelo computations, and auto-mapping
  */
 
-import { httpGet, httpPost } from "../../utils/httpMethods";
+import { httpGet, httpPost, httpPatch } from "../../utils/httpMethods";
 import { TAX_CALCULATION_URL, TAX_ENGINE_URL } from "../restEndpoint";
 
 /**
@@ -286,5 +286,107 @@ export const getTaxEngineCalculation = async ({ modeloNo, startDate, endDate, ye
   } catch (error) {
     console.error(`Error fetching tax engine calculation for modelo ${modeloNo}:`, error);
     return null;
+  }
+};
+
+// ── New flow: ledger-driven tax engine ───────────────────────────────────────
+
+/**
+ * Extract unique modelo numbers and their ObjectIDs from ledger entries.
+ * Reads entry.tax_classification.matched_modelos[].modelo_no and .modelo_id
+ * @param {Array} entries - Ledger entries array
+ * @returns {{ modeloNos: string[], modeloIdMap: Record<string, string> }}
+ */
+export const extractModeloNosFromLedgers = (entries) => {
+  const modeloIdMap = {};
+  if (!Array.isArray(entries)) return { modeloNos: [], modeloIdMap };
+  entries.forEach((entry) => {
+    const matched = entry?.tax_classification?.matched_modelos;
+    if (!Array.isArray(matched)) return;
+    matched.forEach((m) => {
+      const no = m?.modelo_no ? String(m.modelo_no) : null;
+      const id = m?.modelo_id || m?._id || null;
+      if (no && !modeloIdMap[no]) {
+        modeloIdMap[no] = id || no;
+      }
+    });
+  });
+  return { modeloNos: Object.keys(modeloIdMap), modeloIdMap };
+};
+
+// Annual-only modelos (no quarter param)
+export const ANNUAL_MODELOS = new Set(["190", "390"]);
+
+/**
+ * Run tax engine calculations for all relevant modelos in parallel.
+ * Quarterly modelos: 303, 130, 115, 111 → { year, quarter, modelo_id? }
+ * Annual modelos:    390, 190           → { year, modelo_id? }
+ * @param {Object} params
+ * @param {string[]} params.modeloNos - Modelos to calculate
+ * @param {Record<string,string>} params.modeloIdMap - modelo_no → ObjectID
+ * @param {number} params.year
+ * @param {number|null} params.quarter - 1-4 for quarterly, null for annual view
+ * @returns {Promise<Record<string, Object|null>>} map of modeloNo → result
+ */
+export const calculateAllTaxes = async ({ modeloNos, modeloIdMap, year, quarter }) => {
+  const results = {};
+  const tasks = modeloNos.map(async (modeloNo) => {
+    const isAnnual = ANNUAL_MODELOS.has(modeloNo);
+    // Skip quarterly modelos when in annual view, and annual modelos when in quarterly view
+    if (isAnnual && quarter !== null) { results[modeloNo] = null; return; }
+    if (!isAnnual && quarter === null) { results[modeloNo] = null; return; }
+
+    try {
+      const payload = { year };
+      if (!isAnnual) payload.quarter = `Q${quarter}`;
+      const modeloId = modeloIdMap[modeloNo];
+      if (modeloId && modeloId !== modeloNo) payload.modelo_id = modeloId;
+
+      const response = await httpPost({
+        url: `${TAX_ENGINE_URL}/${modeloNo}/calculate`,
+        payload,
+      });
+      results[modeloNo] = response?.data ?? null;
+    } catch (err) {
+      console.error(`Tax engine error for modelo ${modeloNo}:`, err);
+      results[modeloNo] = null;
+    }
+  });
+  await Promise.all(tasks);
+  return results;
+};
+
+/**
+ * Fetch all saved tax reports for the current user.
+ * GET /api/tax-engine/reports
+ * @returns {Promise<Array>}
+ */
+export const getTaxReports = async () => {
+  try {
+    const response = await httpGet({ url: `${TAX_ENGINE_URL}/reports` });
+    return Array.isArray(response?.data) ? response.data : (response?.data?.reports ?? []);
+  } catch (error) {
+    console.error("Error fetching tax reports:", error);
+    return [];
+  }
+};
+
+/**
+ * Update the status of a saved tax report.
+ * PATCH /api/tax-engine/reports/{report_id}/status
+ * @param {string} reportId
+ * @param {string} status
+ * @returns {Promise<Object>}
+ */
+export const updateTaxReportStatus = async (reportId, status) => {
+  try {
+    const response = await httpPatch({
+      url: `${TAX_ENGINE_URL}/reports/${reportId}/status`,
+      payload: { status },
+    });
+    return response?.data;
+  } catch (error) {
+    console.error("Error updating tax report status:", error);
+    throw error;
   }
 };

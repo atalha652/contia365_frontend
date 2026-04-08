@@ -1,16 +1,16 @@
 import { VOUCHER_URL } from "../restEndpoint";
-import { httpPost, httpGet } from "../../utils/httpMethods";
+import { httpPost, httpGet, httpPostBlob } from "../../utils/httpMethods";
 import { SERVER_PATH } from "../restEndpoint";
 
 // Upload voucher(s): receipts or invoices with optional transaction_type
 // This sends the user's files and metadata to the backend upload endpoint.
-export const uploadVouchers = async ({ user_id, files, title, description, category, transaction_type }) => {
+export const uploadVouchers = async ({ user_id, files, title, description, category, transaction_type, period }) => {
   try {
     if (!user_id) throw new Error("Missing user_id for voucher upload");
     if (!files || files.length === 0) throw new Error("Please select at least one file");
     if (!title) throw new Error("Please provide a title");
     if (!category) throw new Error("Please select a category");
-    // If transaction_type is provided, ensure it's one of the accepted values
+    if (!period) throw new Error("Please select a tax period");
     if (transaction_type && !["credit", "debit"].includes(transaction_type)) {
       throw new Error("transaction_type must be either 'credit' or 'debit'");
     }
@@ -20,6 +20,7 @@ export const uploadVouchers = async ({ user_id, files, title, description, categ
     formData.append("title", title);
     formData.append("description", description || "");
     formData.append("category", category);
+    formData.append("period", period);
     if (transaction_type) formData.append("transaction_type", transaction_type);
     files.forEach((file) => formData.append("files", file));
 
@@ -184,17 +185,25 @@ export const rejectVouchers = async ({ voucher_ids, rejected_by, rejection_reaso
 };
 
 // Start OCR job for vouchers (bulk or single)
-export const runVoucherOCR = async ({ user_id, voucher_ids }) => {
+export const runVoucherOCR = async ({ user_id, voucher_ids, period }) => {
   try {
     if (!user_id) throw new Error("Missing user_id");
     const ids = Array.isArray(voucher_ids) ? voucher_ids : [voucher_ids].filter(Boolean);
     if (ids.length === 0) throw new Error("Select at least one voucher to run OCR");
 
+    // Backend expects multipart/form-data with period as a required field
+    // Default period to current month (YYYY-MM) if not provided
+    const effectivePeriod = period || (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    })();
+
     const formData = new FormData();
     formData.append("user_id", user_id);
     formData.append("voucher_ids", ids.join(","));
+    formData.append("period", effectivePeriod);
 
-    const response = await httpPost({
+    const response = await httpPostBlob({
       url: `${SERVER_PATH}/api/accounting/ocr/voucher_ocr`,
       payload: formData,
     });

@@ -324,14 +324,18 @@ const Ledger = () => {
               // Build CSV from filtered entries
               const header = [
                 "Invoice #",
+                "Period",
                 "Modelo ID",
                 "Modelo Confidence",
                 "Supplier",
                 "Customer",
                 "Items Count",
+                "Base",
                 "Total",
                 "VAT_rate",
                 "VAT_amount",
+                "IRPF_rate",
+                "IRPF_amount",
                 "Total_with_Tax",
                 "Type",
                 "Created"
@@ -340,25 +344,33 @@ const Ledger = () => {
                 const sup = e?.invoice_data?.supplier?.business_name || "";
                 const cus = e?.invoice_data?.customer?.company_name || "";
                 const inv = e?.invoice_data?.invoice?.invoice_number || "";
+                const period = e?.period || "";
                 const modeloId = e?.ai_modelo_id || "";
                 const modeloConf = e?.ai_modelo_confidence ? (e.ai_modelo_confidence * 100).toFixed(0) + "%" : "";
+                const base = e?.invoice_data?.totals?.base ?? 0;
                 const total = e?.invoice_data?.totals?.total ?? 0;
                 const vatRate = e?.invoice_data?.totals?.VAT_rate ?? "";
                 const vatAmount = e?.invoice_data?.totals?.VAT_amount ?? 0;
+                const irpfRate = e?.invoice_data?.totals?.IRPF_rate ?? "";
+                const irpfAmount = e?.invoice_data?.totals?.IRPF_amount ?? 0;
                 const totalWithTax = e?.invoice_data?.totals?.Total_with_Tax ?? e?.invoice_data?.totals?.total ?? 0;
                 const txType = e?.invoice_data?.transaction_type || "";
                 const created = e?.created_at || "";
                 const itemsCount = Array.isArray(e?.invoice_data?.items) ? e.invoice_data.items.length : 0;
                 return [
                   inv,
+                  period,
                   modeloId,
                   modeloConf,
                   sup,
                   cus,
                   itemsCount,
+                  base,
                   total,
                   vatRate,
                   vatAmount,
+                  irpfRate,
+                  irpfAmount,
                   totalWithTax,
                   txType,
                   created,
@@ -401,17 +413,20 @@ const Ledger = () => {
                   aria-label="Select all"
                 />
               </TableHead>
-              {/* Put Invoice # first and remove internal ids */}
               <TableHead className="whitespace-nowrap">Invoice #</TableHead>
+              <TableHead className="whitespace-nowrap">Period</TableHead>
               <TableHead className="whitespace-nowrap">Modelo ID</TableHead>
               <TableHead className="whitespace-nowrap">Confidence</TableHead>
               <TableHead className="whitespace-nowrap">Supplier</TableHead>
               <TableHead className="whitespace-nowrap">Customer</TableHead>
               <TableHead className="whitespace-nowrap">Items</TableHead>
               {/* Split totals into separate columns */}
+              <TableHead className="whitespace-nowrap">Base</TableHead>
               <TableHead className="whitespace-nowrap">Total</TableHead>
               <TableHead className="whitespace-nowrap">VAT %</TableHead>
               <TableHead className="whitespace-nowrap">VAT Amount</TableHead>
+              <TableHead className="whitespace-nowrap">IRPF %</TableHead>
+              <TableHead className="whitespace-nowrap">IRPF Amount</TableHead>
               <TableHead className="whitespace-nowrap">Total with Tax</TableHead>
               {/* New transaction type column shows debit/credit as badges */}
               <TableHead className="whitespace-nowrap">Type</TableHead>
@@ -434,6 +449,10 @@ const Ledger = () => {
                       <div className="w-4 h-4 bg-bg-40 rounded animate-pulse" />
                       <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
                     </div>
+                  </TableCell>
+                  {/* Period skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
                   </TableCell>
                   {/* Modelo ID skeleton */}
                   <TableCell>
@@ -464,6 +483,10 @@ const Ledger = () => {
                       <div className="h-3 w-8 bg-bg-40 rounded animate-pulse" />
                     </div>
                   </TableCell>
+                  {/* Base skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
                   {/* Total skeleton */}
                   <TableCell>
                     <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
@@ -473,6 +496,14 @@ const Ledger = () => {
                     <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
                   </TableCell>
                   {/* VAT Amount skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* IRPF % skeleton */}
+                  <TableCell>
+                    <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
+                  </TableCell>
+                  {/* IRPF Amount skeleton */}
                   <TableCell>
                     <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
                   </TableCell>
@@ -519,6 +550,10 @@ const Ledger = () => {
                     </button>
                     <span className="text-sm text-fg-60 whitespace-nowrap">{e?.invoice_data?.invoice?.invoice_number || "-"}</span>
                   </div>
+                </TableCell>
+                {/* Period */}
+                <TableCell>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{e?.period || "-"}</span>
                 </TableCell>
                 {/* Modelo ID badge */}
                 <TableCell>
@@ -567,7 +602,10 @@ const Ledger = () => {
                     <span className="text-sm text-fg-60 whitespace-nowrap">{Array.isArray(e?.invoice_data?.items) ? e.invoice_data.items.length : 0}</span>
                   </div>
                 </TableCell>
-                {/* Show totals directly in four separate columns */}
+                {/* Show totals directly in separate columns */}
+                <TableCell>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{formatCurrency(e?.invoice_data?.totals?.base)}</span>
+                </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatCurrency(e?.invoice_data?.totals?.total)}</span>
                 </TableCell>
@@ -576,6 +614,12 @@ const Ledger = () => {
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatCurrency(e?.invoice_data?.totals?.VAT_amount)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{typeof e?.invoice_data?.totals?.IRPF_rate === "number" ? e.invoice_data.totals.IRPF_rate.toFixed(2) : (e?.invoice_data?.totals?.IRPF_rate ?? "-")}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-fg-60 whitespace-nowrap">{formatCurrency(e?.invoice_data?.totals?.IRPF_amount)}</span>
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatCurrency(e?.invoice_data?.totals?.Total_with_Tax ?? e?.invoice_data?.totals?.total)}</span>
@@ -605,7 +649,7 @@ const Ledger = () => {
             {filtered.length === 0 && (
               <TableRow>
                 {/* Adjusted colSpan to 14 to match headers (added Confidence column) */}
-                <TableCell className="text-center" colSpan={14}>
+                <TableCell className="text-center" colSpan={17}>
                   <span className="text-sm text-fg-60">No ledger entries match your filters.</span>
                 </TableCell>
               </TableRow>
@@ -692,9 +736,12 @@ const Ledger = () => {
             {/* Totals panel content */}
             {panelSection === "totals" && (
               <div className="space-y-2 text-sm text-fg-60">
+                <div><span className="font-medium text-fg-40">Base:</span> {panelEntry?.invoice_data?.totals?.base ?? "-"}</div>
                 <div><span className="font-medium text-fg-40">Total:</span> {panelEntry?.invoice_data?.totals?.total ?? "-"}</div>
                 <div><span className="font-medium text-fg-40">VAT %:</span> {panelEntry?.invoice_data?.totals?.VAT_rate ?? "-"}</div>
                 <div><span className="font-medium text-fg-40">VAT Amount:</span> {panelEntry?.invoice_data?.totals?.VAT_amount ?? "-"}</div>
+                <div><span className="font-medium text-fg-40">IRPF %:</span> {panelEntry?.invoice_data?.totals?.IRPF_rate ?? "-"}</div>
+                <div><span className="font-medium text-fg-40">IRPF Amount:</span> {panelEntry?.invoice_data?.totals?.IRPF_amount ?? "-"}</div>
                 <div><span className="font-medium text-fg-40">Total with Tax:</span> {panelEntry?.invoice_data?.totals?.Total_with_Tax ?? "-"}</div>
               </div>
             )}

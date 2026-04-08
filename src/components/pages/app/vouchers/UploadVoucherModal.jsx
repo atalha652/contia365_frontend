@@ -1,9 +1,8 @@
-// This component renders the upload voucher modal and handles file selection, previews, and submission
 import React, { useEffect, useState } from "react";
-// Use shared themed Select which is now fully custom-styled
 import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input, Select } from "../../../ui";
 import { X } from "lucide-react";
 import { uploadVouchers } from "../../../../api/apiFunction/voucherServices";
+import { getAvailablePeriods } from "../../../../utils/helperFunction";
 import { toast } from "react-toastify";
 
 const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
@@ -16,8 +15,8 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
   const [description, setDescription] = useState("");
   // Default category set to Bill so the upload button stays enabled without extra click
   const [category, setCategory] = useState("Bill");
-  // New field: transaction type (credit/debit)
   const [transactionType, setTransactionType] = useState("");
+  const [period, setPeriod] = useState(() => getAvailablePeriods().at(-1)?.value ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,6 +55,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
     setDescription("");
     setCategory("Bill");
     setTransactionType("");
+    setPeriod(getAvailablePeriods().at(-1)?.value ?? "");
     setError("");
   };
 
@@ -85,6 +85,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
         title,
         description,
         category,
+        period,
         transaction_type: transactionType || undefined,
       });
       toast.success("Voucher uploaded successfully");
@@ -92,7 +93,10 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
       handleClose();
     } catch (err) {
       console.error(err);
-      const message = err?.response?.data?.detail || err.message || "Upload failed";
+      const status = err?.response?.status;
+      const message = status === 403
+        ? "This tax period is closed. Deadlines are the 10th of the following month."
+        : (err?.response?.data?.detail || err.message || "Upload failed");
       setError(message);
       toast.error(message);
     } finally {
@@ -126,9 +130,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
           {/* Category and Transaction Type in same row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              {/* Category selection for the voucher */}
               <label className="block text-sm text-fg-60 mb-1">Category</label>
-              {/* Use global Select which renders custom dropdown with accent hover and bd-50 borders */}
               <Select value={category} onChange={(e) => setCategory(e.target.value)}>
                 {["Bill", "Invoice", "Receipt", "Expense", "Other"].map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -136,15 +138,25 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
               </Select>
             </div>
             <div>
-              {/* Transaction type selection (credit/debit) */}
               <label className="block text-sm text-fg-60 mb-1">Transaction Type</label>
-              {/* Use global Select which renders custom dropdown with accent hover and bd-50 borders */}
               <Select value={transactionType} onChange={(e) => setTransactionType(e.target.value)}>
                 <option value="">Select type</option>
                 <option value="credit">credit</option>
                 <option value="debit">debit</option>
               </Select>
             </div>
+          </div>
+          {/* Tax Period selector — required, enforces 10th-of-month rule */}
+          <div>
+            <label className="block text-sm text-fg-60 mb-1">
+              Tax Period <span className="text-red-500">*</span>
+            </label>
+            <Select value={period} onChange={(e) => setPeriod(e.target.value)}>
+              {getAvailablePeriods().map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </Select>
+            <p className="text-xs text-fg-60 mt-1">Previous month available until the 10th.</p>
           </div>
           <div>
             {/* Optional description for added context */}
@@ -210,7 +222,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
       <ModalFooter>
         {/* Form actions: cancel or upload */}
         <Button variant="secondary" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
-        <Button variant="primary" onClick={handleUpload} disabled={isSubmitting || files.length === 0 || !title || !category}>
+        <Button variant="primary" onClick={handleUpload} disabled={isSubmitting || files.length === 0 || !title || !category || !period}>
           {isSubmitting ? "Uploading..." : "Upload"}
         </Button>
       </ModalFooter>

@@ -20,14 +20,14 @@ const Vouchers = () => {
               Uploads
             </NavLink>
             {/* Tab: Gmail */}
-            <NavLink
+            {/* <NavLink
               to="gmail"
               className={({ isActive }) =>
                 `px-3 py-1.5 rounded-md text-sm ${isActive ? "bg-bg-50 border border-bd-50 text-fg-40" : "text-fg-60 hover:text-fg-40"}`
               }
             >
               Gmail
-            </NavLink>
+            </NavLink> */}
           </div>
         </div>
 

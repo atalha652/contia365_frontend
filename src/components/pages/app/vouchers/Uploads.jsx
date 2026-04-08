@@ -85,7 +85,7 @@ const VouchersUploads = () => {
         created_at: v.created_at || v.date || "",
         files: Array.isArray(v.files) ? v.files : [],
         files_count: typeof v.files_count === "number" ? v.files_count : Array.isArray(v.files) ? v.files.length : 0,
-        ocr: v.OCR || v.ocr_status || "",
+        period: v.period || "",
         rejection_count: typeof v.rejection_count === "number" ? v.rejection_count : 0,
         rejected_at: v.rejected_at,
         rejected_by: v.rejected_by,
@@ -225,6 +225,7 @@ const VouchersUploads = () => {
               <input type="checkbox" className="form-checkbox h-4 w-4 rounded border-bd-50" checked={allSelectedOnPage} onChange={toggleSelectAll} aria-label="Select all" />
             </TableHead>
             <TableHead className="whitespace-nowrap">Title</TableHead>
+            <TableHead className="whitespace-nowrap">Period</TableHead>
             <TableHead className="whitespace-nowrap">Category</TableHead>
             <TableHead className="whitespace-nowrap">Files</TableHead>
             <TableHead className="whitespace-nowrap">Status</TableHead>
@@ -245,6 +246,10 @@ const VouchersUploads = () => {
                 {/* Title skeleton */}
                 <TableCell>
                   <div className="h-3 w-32 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                {/* Period skeleton */}
+                <TableCell>
+                  <div className="h-3 w-20 bg-bg-40 rounded animate-pulse" />
                 </TableCell>
                 {/* Category skeleton */}
                 <TableCell>
@@ -290,6 +295,9 @@ const VouchersUploads = () => {
                 <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{voucher.title || "-"}</span>
               </TableCell>
               <TableCell>
+                <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.period || "-"}</span>
+              </TableCell>
+              <TableCell>
                 <span className="text-sm text-fg-60 whitespace-nowrap">{voucher.category || "-"}</span>
               </TableCell>
               <TableCell>
@@ -326,7 +334,7 @@ const VouchersUploads = () => {
 
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center" colSpan={8}>
+                  <TableCell className="text-center" colSpan={9}>
                     <span className="text-sm text-fg-60">No vouchers match your filters.</span>
                   </TableCell>
                 </TableRow>

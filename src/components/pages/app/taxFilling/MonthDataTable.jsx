@@ -126,18 +126,20 @@ const MonthDataTable = ({ month, semester, year }) => {
 
     // Calculate totals
     const totals = useMemo(() => {
-        const sum = filteredData.reduce(
+        return filteredData.reduce(
             (acc, e) => {
-                const total = Number(
-                    e?.invoice_data?.totals?.Total_with_Tax ||
-                    e?.invoice_data?.totals?.total ||
-                    0
-                );
-                return { count: acc.count + 1, total: acc.total + (total || 0) };
+                const t = e?.invoice_data?.totals ?? {};
+                return {
+                    count: acc.count + 1,
+                    base: acc.base + Number(t.base || 0),
+                    total: acc.total + Number(t.total || 0),
+                    vatAmount: acc.vatAmount + Number(t.VAT_amount || 0),
+                    irpfAmount: acc.irpfAmount + Number(t.IRPF_amount || 0),
+                    totalWithTax: acc.totalWithTax + Number(t.Total_with_Tax ?? t.total ?? 0),
+                };
             },
-            { count: 0, total: 0 }
+            { count: 0, base: 0, total: 0, vatAmount: 0, irpfAmount: 0, totalWithTax: 0 }
         );
-        return sum;
     }, [filteredData]);
 
     return (
@@ -164,9 +166,25 @@ const MonthDataTable = ({ month, semester, year }) => {
                 </div>
                 <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl border border-green-500/20 shadow-sm">
                     <div className="text-right">
-                        <div className="text-xs text-fg-60 font-medium">Total Amount</div>
+                        <div className="text-xs text-fg-60 font-medium">Total with Tax</div>
                         <div className="text-lg font-bold text-green-600">
-                            {formatCurrency(totals.total)}
+                            {formatCurrency(totals.totalWithTax)}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-500/20 shadow-sm">
+                    <div className="text-right">
+                        <div className="text-xs text-fg-60 font-medium">VAT Amount</div>
+                        <div className="text-base font-bold text-blue-600">
+                            {formatCurrency(totals.vatAmount)}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-xl border border-orange-500/20 shadow-sm">
+                    <div className="text-right">
+                        <div className="text-xs text-fg-60 font-medium">IRPF Amount</div>
+                        <div className="text-base font-bold text-orange-600">
+                            {formatCurrency(totals.irpfAmount)}
                         </div>
                     </div>
                 </div>
@@ -187,9 +205,12 @@ const MonthDataTable = ({ month, semester, year }) => {
                         <TableHead>Supplier</TableHead>
                         <TableHead>Customer</TableHead>
                         <TableHead>Items</TableHead>
+                        <TableHead>Base</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>VAT %</TableHead>
                         <TableHead>VAT Amount</TableHead>
+                        <TableHead>IRPF %</TableHead>
+                        <TableHead>IRPF Amount</TableHead>
                         <TableHead>Total with Tax</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead isLast={true}>Created</TableHead>
@@ -228,6 +249,15 @@ const MonthDataTable = ({ month, semester, year }) => {
                                     <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
                                 </TableCell>
                                 <TableCell>
+                                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                                </TableCell>
+                                <TableCell>
+                                    <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
+                                </TableCell>
+                                <TableCell>
+                                    <div className="h-3 w-16 bg-bg-40 rounded animate-pulse" />
+                                </TableCell>
+                                <TableCell>
                                     <div className="h-3 w-12 bg-bg-40 rounded animate-pulse" />
                                 </TableCell>
                                 <TableCell>
@@ -248,7 +278,7 @@ const MonthDataTable = ({ month, semester, year }) => {
                         <>
                             {filteredData.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="text-center py-8">
+                                    <TableCell colSpan={13} className="text-center py-8">
                                         <span className="text-sm text-fg-60">
                                             No ledger entries for {month}
                                         </span>
@@ -328,6 +358,11 @@ const MonthDataTable = ({ month, semester, year }) => {
                                             {/* Show totals in separate columns */}
                                             <TableCell>
                                                 <span className="text-sm text-fg-60 whitespace-nowrap">
+                                                    {formatCurrency(e?.invoice_data?.totals?.base)}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-fg-60 whitespace-nowrap">
                                                     {formatCurrency(e?.invoice_data?.totals?.total)}
                                                 </span>
                                             </TableCell>
@@ -341,6 +376,18 @@ const MonthDataTable = ({ month, semester, year }) => {
                                             <TableCell>
                                                 <span className="text-sm text-fg-60 whitespace-nowrap">
                                                     {formatCurrency(e?.invoice_data?.totals?.VAT_amount)}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-fg-60 whitespace-nowrap">
+                                                    {typeof e?.invoice_data?.totals?.IRPF_rate === "number"
+                                                        ? e.invoice_data.totals.IRPF_rate.toFixed(2)
+                                                        : e?.invoice_data?.totals?.IRPF_rate ?? "-"}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-fg-60 whitespace-nowrap">
+                                                    {formatCurrency(e?.invoice_data?.totals?.IRPF_amount)}
                                                 </span>
                                             </TableCell>
                                             <TableCell>

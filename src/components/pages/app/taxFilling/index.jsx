@@ -122,14 +122,14 @@ const TaxFiling = () => {
 
   const hasClassifiedLedgers = modeloNos.length > 0;
 
-  const handleCalculate = async () => {
-    if (!hasClassifiedLedgers) return;
+  const handleCalculate = async (nos = modeloNos, idMap = modeloIdMap) => {
+    if (!nos.length) return;
     setCalculating(true);
     setCalcError(null);
     try {
       const results = await calculateAllTaxes({
-        modeloNos,
-        modeloIdMap,
+        modeloNos: nos,
+        modeloIdMap: idMap,
         year: selectedYear,
         quarter: quarterParam,
       });
@@ -141,6 +141,15 @@ const TaxFiling = () => {
       setCalculating(false);
     }
   };
+
+  // Auto-calculate when ledgers finish loading and cache is empty for this view
+  useEffect(() => {
+    if (ledgersLoading) return;
+    if (!modeloNos.length) return;
+    if (calcCache.current[cacheKey]) return; // already cached, no need to re-fetch
+    handleCalculate(modeloNos, modeloIdMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledgersLoading, cacheKey]);
 
   // Modelos relevant to the current view
   const visibleModelos = useMemo(() => {
@@ -291,7 +300,43 @@ const TaxFiling = () => {
                 </div>
               )}
 
-              {visibleModelos.length > 0 && (
+              {/* Skeleton cards while ledgers loading or calculating */}
+              {(ledgersLoading || calculating) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[...Array(visibleModelos.length || 2)].map((_, i) => (
+                    <div key={i} className="bg-bg-50 border border-bd-50 rounded-xl p-6 space-y-4 animate-pulse">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="h-4 w-48 bg-bg-40 rounded" />
+                          <div className="h-3 w-32 bg-bg-40 rounded" />
+                        </div>
+                        <div className="w-10 h-10 bg-bg-40 rounded-xl" />
+                      </div>
+                      <div className="bg-bg-60 rounded-lg p-4 border border-bd-50 space-y-2">
+                        <div className="h-3 w-24 bg-bg-40 rounded" />
+                        <div className="h-7 w-36 bg-bg-40 rounded" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-bg-60 rounded-lg p-3 border border-bd-50 space-y-2">
+                          <div className="h-3 w-20 bg-bg-40 rounded" />
+                          <div className="h-5 w-24 bg-bg-40 rounded" />
+                        </div>
+                        <div className="bg-bg-60 rounded-lg p-3 border border-bd-50 space-y-2">
+                          <div className="h-3 w-20 bg-bg-40 rounded" />
+                          <div className="h-5 w-24 bg-bg-40 rounded" />
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-bd-50 flex justify-between">
+                        <div className="h-3 w-24 bg-bg-40 rounded" />
+                        <div className="h-3 w-32 bg-bg-40 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Real cards once data is ready */}
+              {!ledgersLoading && !calculating && visibleModelos.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {visibleModelos.map((modeloNo) => {
                     const liveResult = calcResults?.[modeloNo] ?? null;

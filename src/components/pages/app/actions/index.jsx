@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Search, Filter, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
@@ -50,6 +50,30 @@ const Actions = () => {
     fetchVouchers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Poll every 3s while any voucher is in "processing" state, stop when all settle
+  const pollRef = useRef(null);
+
+  const startPolling = () => {
+    if (pollRef.current) return; // already polling
+    pollRef.current = setInterval(async () => {
+      const { vouchers: items } = await listApprovedVouchers({ user_id: userId }).catch(() => ({ vouchers: [] }));
+      const list = Array.isArray(items) ? items : [];
+      setVouchers(list);
+      const stillProcessing = list.some((v) => (v.OCR || v.ocr_status || "").toLowerCase() === "processing");
+      if (!stillProcessing) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }, 3000);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   // Normalize vouchers to a consistent shape for display
   const normalized = useMemo(() => {
@@ -182,10 +206,8 @@ const Actions = () => {
                   setBulkSending(true);
                   const res = await runVoucherOCR({ user_id: userId, voucher_ids: vouchersToProcess });
                   toast.success(`OCR processing started for ${vouchersToProcess.length} voucher(s)`);
-                  // Optional: basic follow-up fetch to reflect any immediate status changes
-                  setTimeout(async () => {
-                    await fetchVouchers();
-                  }, 1500);
+                  await fetchVouchers();
+                  startPolling();
                 } catch (err) {
                   const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
                   toast.error(message);
@@ -325,9 +347,8 @@ const Actions = () => {
                         setRowSendingIds((prev) => Array.from(new Set([...prev, item.id])));
                         await runVoucherOCR({ user_id: userId, voucher_ids: [item.id] });
                         toast.success(`OCR started for #${item.id}`);
-                        setTimeout(async () => {
-                          await fetchVouchers();
-                        }, 1500);
+                        await fetchVouchers();
+                        startPolling();
                       } catch (err) {
                         const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
                         toast.error(message);

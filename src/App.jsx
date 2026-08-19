@@ -33,6 +33,11 @@ import BankTransactions from "./components/pages/app/BankTransactions";
 import BankTransactionDetails from "./components/pages/app/BankTransactionDetails";
 import TaxFiling from "./components/pages/app/taxFilling";
 // Removed Bank Reconciliation, Expenses, Payroll per request
+import InvoiceList from "./components/pages/app/invoices/InvoiceList";
+import InvoiceEditor from "./components/pages/app/invoices/InvoiceEditor";
+import InvoiceView from "./components/pages/app/invoices/InvoiceView";
+import Compliance from "./components/pages/app/Compliance";
+import CertificateSettings from "./components/pages/app/CertificateSettings";
 
 function App() {
   return (
@@ -81,6 +86,12 @@ function App() {
               <Route path="tax-filings" element={<TaxFiling />} />
               <Route path="bank-transactions" element={<BankTransactions />} />
               <Route path="bank-transactions/:accountId" element={<BankTransactionDetails />} />
+              {/* Invoice lifecycle routes */}
+              <Route path="invoices" element={<InvoiceList />} />
+              <Route path="invoices/:invoiceId" element={<InvoiceEditor />} />
+              <Route path="invoices/view/:invoiceId" element={<InvoiceView />} />
+              <Route path="compliance" element={<Compliance />} />
+              <Route path="settings/compliance" element={<CertificateSettings />} />
               {/* Removed routes: bank-reconciliation, expences, payroll */}
             </Route>
           </Routes>

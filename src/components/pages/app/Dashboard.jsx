@@ -6,6 +6,7 @@ import { getDashboardStats, getDashboardSummary, getTaxDashboardDeadline } from 
 import MonthTabs from "./taxFilling/MonthTabs";
 import VATSummaryWidget from "./dashboard/VATSummaryWidget";
 import IRPFSummaryWidget from "./dashboard/IRPFSummaryWidget";
+import ChainIntegrityWidget from "./dashboard/ChainIntegrityWidget";
 
 const Dashboard = () => {
   const { currentYear, currentQuarterId, currentMonthStart, currentMonthEnd, currentQuarterStart, currentQuarterEnd } = useMemo(() => {
@@ -237,6 +238,11 @@ const Dashboard = () => {
               title="IRPF Summary (Current Quarter)"
             />
           </div>
+        </div>
+
+        {/* Invoice Chain Integrity */}
+        <div className="pb-2">
+          <ChainIntegrityWidget />
         </div>
 
         {/* Recent Activity redesign: single-row sub cards with one badge */}

@@ -13,6 +13,9 @@ import {
   KeyRound,
   CheckSquare,
   Landmark,
+  FilePlus,
+  ShieldCheck,
+  Settings,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -45,11 +48,14 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   const items = [
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
     { to: "/app/vouchers", label: "Vouchers", icon: FileText },
-    { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
+    { to: "/app/invoices", label: "Invoices", icon: FilePlus },
+    { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
     { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
+    { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
+    { to: "/app/settings/compliance", label: "Certificate", icon: Settings },
   ];
 
   const isActive = (path) => location.pathname.startsWith(path);

@@ -5,11 +5,22 @@ import Sidebar from "../components/pages/app/Sidebar";
 import Header from "../components/pages/app/Header";
 import { updatePageTitle } from "../utils/titleUtils";
 import { toast } from "react-toastify";
+import AiChat from "../components/pages/app/AiChat";
+import { verifyInvoiceChain } from "../api/apiFunction/invoiceServices";
+import { ShieldAlert } from "lucide-react";
 
 const AppPage = () => {
   const { theme, toggleTheme } = useTheme();
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [headerTitle, setHeaderTitle] = useState("App");
+  const [chainValid, setChainValid] = useState(null); // null=unchecked, true=ok, false=broken
+
+  // Run chain check once on app load — cached in state for the session
+  useEffect(() => {
+    verifyInvoiceChain()
+      .then((data) => setChainValid(data?.valid ?? true))
+      .catch(() => setChainValid(null));
+  }, []);
 
   // Shared state (ported from sample.jsx)
   const [invoices, setInvoices] = useState([]);
@@ -191,6 +202,9 @@ const AppPage = () => {
     else if (path.includes("/app/ledger")) label = "Ledger";
     else if (path.includes("/app/expences")) label = "Expenses";
     else if (path.includes("/app/payroll")) label = "Payroll";
+    else if (path.includes("/app/invoices")) label = "Invoices";
+    else if (path.includes("/app/compliance")) label = "Chain Integrity";
+    else if (path.includes("/app/settings/compliance")) label = "Certificate Settings";
     setHeaderTitle(label);
     updatePageTitle(label);
   }, [location]);
@@ -241,6 +255,15 @@ const AppPage = () => {
           </div>
         </div>
 
+        {/* Global chain integrity warning banner */}
+        {chainValid === false && (
+          <div className="mx-4 mt-2 px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 text-sm">
+            <ShieldAlert className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <span className="text-red-400 flex-1">Invoice chain integrity check failed — possible tampering detected.</span>
+            <a href="/app/compliance" className="text-red-400 underline whitespace-nowrap text-xs">View details</a>
+          </div>
+        )}
+
         {/* Main right card below header with gap */}
         <div className="flex-1 min-h-0 overflow-y-auto px-0 pt-4 custom-scrollbar">
           <div className="h-full">
@@ -248,6 +271,8 @@ const AppPage = () => {
           </div>
         </div>
       </div>
+
+      <AiChat />
     </div>
   );
 };

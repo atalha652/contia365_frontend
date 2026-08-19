@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Calendar, TrendingUp, Calculator, RefreshCw } from "lucide-react";
+import { Calendar, TrendingUp, Calculator, RefreshCw, ShieldAlert } from "lucide-react";
 import MonthTabs from "./MonthTabs";
 import ModeloCalculationCard from "./ModeloCalculationCard";
 import { listUserLedgers } from "../../../../api/apiFunction/ledgerServices";
@@ -10,6 +10,9 @@ import {
   getTaxReports,
   ANNUAL_MODELOS,
 } from "../../../../api/apiFunction/taxCalculationServices";
+import { verifyInvoiceChain } from "../../../../api/apiFunction/invoiceServices";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
+import { Button } from "../../../ui";
 
 const MODELO_LABELS = {
   "115": "Modelo 115 – IRPF Rent Withholding",
@@ -107,6 +110,7 @@ const TaxFiling = () => {
   const [calcResults, setCalcResults] = useState(null); // current view results
   const [calculating, setCalculating] = useState(false);
   const [calcError, setCalcError] = useState(null);
+  const [chainModal, setChainModal] = useState(false);
 
   const cacheKey = selectedSemester === "annual"
     ? `${selectedYear}:annual`
@@ -124,6 +128,11 @@ const TaxFiling = () => {
 
   const handleCalculate = async (nos = modeloNos, idMap = modeloIdMap) => {
     if (!nos.length) return;
+    // Guard: verify chain integrity before allowing tax calculation
+    try {
+      const chain = await verifyInvoiceChain();
+      if (chain?.valid === false) { setChainModal(true); return; }
+    } catch { /* if check fails, allow calculation to proceed */ }
     setCalculating(true);
     setCalcError(null);
     try {
@@ -358,6 +367,30 @@ const TaxFiling = () => {
           </div>
         </div>
       </div>
+
+      {/* Chain integrity block modal */}
+      <Modal open={chainModal} onClose={() => setChainModal(false)}>
+        <ModalHeader title="Tax Filing Blocked" action={
+          <button onClick={() => setChainModal(false)} className="p-1 text-fg-60 hover:text-fg-50 hover:bg-bg-40 rounded-md transition-colors">✕</button>
+        } />
+        <ModalBody>
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-fg-40 mb-1">Invoice chain integrity check failed</p>
+              <p className="text-sm text-fg-60">
+                Tax filing cannot proceed because one or more invoices in the VeriFactu hash chain appear to have been deleted or tampered with. Please resolve the integrity issues before calculating taxes.
+              </p>
+            </div>
+          </div>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setChainModal(false)}>Close</Button>
+          <Button variant="primary" onClick={() => { setChainModal(false); window.location.href = "/app/compliance"; }}>
+            View Compliance Report
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   Button,
   Table,
@@ -20,6 +21,7 @@ import {
 // Import icons including History for rejection count panel
 import { Check, Filter, MoreHorizontal, Search, X, Loader2, History } from "lucide-react";
 import { getAwaitingApprovalVouchers, approveVouchers, rejectVouchers } from "../../../api/apiFunction/voucherServices";
+import { createInvoiceFromVoucher } from "../../../api/apiFunction/invoiceServices";
 // Import reusable right panel and rejection history component
 import RightPanel from "./common/right-panel";
 import RejectionHistory from "./common/right-panel/RejectionHistory";
@@ -166,6 +168,16 @@ const Requests = () => {
     try {
       setActionLoading(true);
       await approveVouchers({ voucher_ids: confirmIds, approver_id: userId, notes: approveNote || undefined });
+
+      // Automatically create a draft invoice for each approved voucher
+      const invoiceResults = await Promise.allSettled(
+        confirmIds.map((id) => createInvoiceFromVoucher({ voucherId: id }))
+      );
+      const created = invoiceResults.filter((r) => r.status === "fulfilled").length;
+      const skipped = invoiceResults.filter((r) => r.status === "rejected").length;
+      if (created > 0) toast.success(`${created} invoice${created > 1 ? "s" : ""} created automatically`);
+      if (skipped > 0) toast.info(`${skipped} voucher${skipped > 1 ? "s" : ""} already had an invoice`);
+
       setSelectedIds((prev) => prev.filter((id) => !confirmIds.includes(id)));
       setConfirmIds([]);
       setApproveNote("");

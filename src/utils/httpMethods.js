@@ -263,7 +263,8 @@ export const httpPostStream = async ({ url, payload, onMessage, headers = {}, ab
       const message = buffer.slice(0, boundary).trim();
       buffer = buffer.slice(boundary + 1);
       if (message.startsWith("data:")) {
-        const data = message.replace("data: ", "");
+        // Strip "data:" prefix — handles both "data: token" and "data:token"
+        const data = message.replace(/^data:\s?/, "");
         if (data === "[DONE]") {
           isDone = true;
           onMessage && onMessage(null, true);
@@ -282,7 +283,8 @@ export const httpPostStream = async ({ url, payload, onMessage, headers = {}, ab
           buffer = buffer.slice(nextBoundary + 1);
           if (nextLine.startsWith("data:")) {
             try {
-              truncatedData = JSON.parse(nextLine.replace("data: ", ""));
+              // Strip prefix consistently here too
+              truncatedData = JSON.parse(nextLine.replace(/^data:\s?/, ""));
             } catch (e) {
               console.log(e);
             }

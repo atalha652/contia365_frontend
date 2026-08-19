@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Upload, Search, Filter, MoreHorizontal, Loader2, History, RotateCw } from "lucide-react";
+import { Upload, Search, Filter, MoreHorizontal, Loader2, History, RotateCw, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
 import UploadVoucherModal from "./UploadVoucherModal";
 import RightPanel from "../common/right-panel";
 import RejectionHistory from "../common/right-panel/RejectionHistory";
 import { listUserVouchers, sendVouchersForRequest } from "../../../../api/apiFunction/voucherServices";
+import { createInvoiceFromVoucher } from "../../../../api/apiFunction/invoiceServices";
 
 // This component manages uploads: listing vouchers, filtering, preview, and sending for approval
 const VouchersUploads = () => {
+  const navigate = useNavigate();
   // Simple English: Local states for modal, table, filters, selection, and panels.
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,6 +21,7 @@ const VouchersUploads = () => {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedIds, setSelectedIds] = useState([]);
   const [sending, setSending] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelVoucher, setPanelVoucher] = useState(null);
 
@@ -145,6 +150,22 @@ const VouchersUploads = () => {
     setPanelVoucher(null);
   };
 
+  // Convert an approved voucher into a draft invoice
+  const handleCreateInvoice = async (voucherId) => {
+    try {
+      setCreatingInvoice(voucherId);
+      const data = await createInvoiceFromVoucher({ voucherId });
+      const invoiceId = data?._id || data?.id;
+      toast.success("Draft invoice created");
+      navigate(`/app/invoices/${invoiceId}`);
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err.message || "Failed to create invoice";
+      toast.error(msg);
+    } finally {
+      setCreatingInvoice(null);
+    }
+  };
+
   // This renders the uploads UI: filters, table, and actions
   return (
     <div>
@@ -232,6 +253,7 @@ const VouchersUploads = () => {
             <TableHead className="whitespace-nowrap">Rejection Count</TableHead>
             <TableHead className="whitespace-nowrap">Created</TableHead>
             <TableHead className="whitespace-nowrap">Preview</TableHead>
+            <TableHead className="whitespace-nowrap">Invoice</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -329,12 +351,43 @@ const VouchersUploads = () => {
                   )}
                 </div>
               </TableCell>
+              {/* Create Invoice button for approved vouchers */}
+              <TableCell>
+                {voucher.status === "approved" ? (
+                  voucher.invoice_id ? (
+                    <button
+                      onClick={() => navigate(`/app/invoices/${voucher.invoice_id}`)}
+                      className="flex items-center gap-1 text-xs text-ac-02 hover:underline whitespace-nowrap"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      View Invoice
+                    </button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={creatingInvoice === voucher.id}
+                      onClick={() => handleCreateInvoice(voucher.id)}
+                      className="whitespace-nowrap flex items-center gap-1"
+                    >
+                      {creatingInvoice === voucher.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5" />
+                      )}
+                      Create Invoice
+                    </Button>
+                  )
+                ) : (
+                  <span className="text-xs text-fg-60">—</span>
+                )}
+              </TableCell>
             </TableRow>
               ))}
 
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center" colSpan={9}>
+                  <TableCell className="text-center" colSpan={10}>
                     <span className="text-sm text-fg-60">No vouchers match your filters.</span>
                   </TableCell>
                 </TableRow>

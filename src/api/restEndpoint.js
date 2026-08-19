@@ -53,5 +53,13 @@ export const TAX_CALCULATION_URL = `${SERVER_PATH}/api/tax`;
 // Base URL for tax engine calculations (modelo-specific compute)
 export const TAX_ENGINE_URL = `${SERVER_PATH}/api/tax-engine`;
 
+// Invoice End Points
+// Base URL for invoice lifecycle (create, issue, cancel, view)
+export const INVOICE_URL = `${SERVER_PATH}/api/invoices`;
+
+// Certificate End Point
+// POST /api/auth/certificate — upload .p12 digital certificate
+export const CERTIFICATE_URL = `${SERVER_PATH}/api/auth/certificate`;
+
 
 

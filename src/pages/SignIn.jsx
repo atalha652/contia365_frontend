@@ -44,8 +44,12 @@ const SignIn = () => {
       if (response.status === 200) {
         localStorage.setItem("user", JSON.stringify(response.data));
         toast.success("Login successful! Redirecting...");
-        const { user_type, census_data_uploaded } = response.data;
-        if (user_type && census_data_uploaded) { navigate("/app/dashboard"); } else { navigate("/onboarding"); }
+        const { country, user_type, census_data_uploaded } = response.data;
+        if (country?.toUpperCase() === "ES" && user_type && census_data_uploaded) {
+          navigate("/app/dashboard");
+        } else {
+          navigate("/onboarding");
+        }
       } else {
         throw new Error(response.data?.detail || response.data?.message || "Login failed. Please try again.");
       }

@@ -1,9 +1,65 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
-import { getUserTypes, selectUserType, uploadCensusDocument } from "../api/apiFunction/onboardingServices";
+import {
+  getUserTypes,
+  selectCountry,
+  selectUserType,
+  uploadCensusDocument,
+  getLatestCensusRecord,
+  getCensusRecordId,
+  saveCensusProfile,
+  updateCensusProfile,
+} from "../api/apiFunction/onboardingServices";
+
+const COUNTRIES = [
+  {
+    code: "ES",
+    flag: "🇪🇸",
+    name: "Spain",
+    status: "Available",
+    description: "Continue with Spanish accounting, tax, and AEAT services.",
+  },
+  {
+    code: "IT",
+    flag: "🇮🇹",
+    name: "Italy",
+    status: "Coming soon",
+    description: "Select Italy to join the waitlist for launch updates.",
+  },
+];
+
+// The API still returns freelancer/company/advisor. Keep those ids for every
+// request and only remap what the user reads.
+const WHITE_LABEL_ID = "white_label";
+
+const USER_TYPE_DISPLAY = {
+  freelancer: {
+    name: "Person",
+    subtitle: "Autónomo",
+    description: "Individual professional managing their own invoices and taxes.",
+  },
+  company: {
+    name: "Business",
+    subtitle: "Empresa",
+    description: "Company with employees, accounting, and invoicing needs.",
+  },
+  advisor: {
+    name: "Advisor",
+    subtitle: "Asesor",
+    description: "Tax advisor managing accounting and reports for multiple clients.",
+  },
+};
+
+const WHITE_LABEL_CARD = {
+  id: WHITE_LABEL_ID,
+  name: "White Label",
+  subtitle: "Partner",
+  description: "Offer Contia365 to your own clients under your brand.",
+  comingSoon: true,
+};
 
 const TYPE_ICONS = {
   freelancer: (
@@ -24,9 +80,40 @@ const TYPE_ICONS = {
         d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  [WHITE_LABEL_ID]: (
+    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-6.586 6.586a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V5a2 2 0 012-2z" />
+    </svg>
+  ),
 };
 
-const VERIFICATION_LIMIT = 3 * 60;
+const EMPTY_FISCAL_FORM = {
+  nif_nie: "",
+  full_name: "",
+  iae: "",
+  vat_regime: "",
+  irpf_method: "",
+  address_line: "",
+  postal_code: "",
+  city: "",
+  province: "",
+};
+
+const VAT_REGIMES = [
+  { value: "general", label: "General" },
+  { value: "simplified", label: "Simplified" },
+  { value: "recargo_equivalencia", label: "Recargo de equivalencia" },
+  { value: "exempt", label: "Exempt" },
+  { value: "agriculture", label: "Agriculture" },
+];
+
+const iaeFromActivities = (activities = []) => {
+  const first = activities[0];
+  if (!first) return "";
+  if (typeof first === "string") return first;
+  return first.code || first.iae || first.epigrafe || first.description || "";
+};
 
 const CardSkeleton = () => (
   <div className="flex flex-col items-center p-6 rounded-2xl border-2 border-slate-200 bg-white animate-pulse">
@@ -40,74 +127,228 @@ const CardSkeleton = () => (
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const [selectedCountry, setSelectedCountry] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}")?.country?.toUpperCase() || null;
+    } catch {
+      return null;
+    }
+  });
+  const [countrySaved, setCountrySaved] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}")?.country?.toUpperCase() === "ES";
+    } catch {
+      return false;
+    }
+  });
+  const [isWaitlisted, setIsWaitlisted] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}")?.country?.toUpperCase() === "IT";
+    } catch {
+      return false;
+    }
+  });
+  const [countryLoading, setCountryLoading] = useState(false);
+  const [countryMessage, setCountryMessage] = useState("");
   const [userTypes, setUserTypes] = useState([]);
   const [typesLoading, setTypesLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [whiteLabelInterest, setWhiteLabelInterest] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAEATModal, setShowAEATModal] = useState(false);
   const [aeatStep, setAeatStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(VERIFICATION_LIMIT);
+  const [censusRecordId, setCensusRecordId] = useState(null);
+  const [fiscalForm, setFiscalForm] = useState(EMPTY_FISCAL_FORM);
 
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, "0");
-    const s = (secs % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
+  const updateFiscalField = (field, value) => {
+    setFiscalForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const applyCensusRecord = (record) => {
+    if (!record) return;
+    const id = getCensusRecordId(record);
+    if (id) setCensusRecordId(id);
+    const identity = record.taxpayer_identity || {};
+    const address = identity.fiscal_address || {};
+    const prof = record.professional_registration || {};
+    setFiscalForm({
+      nif_nie: identity.nif_nie || "",
+      full_name: identity.full_name || "",
+      iae: iaeFromActivities(prof.economic_activities),
+      vat_regime: prof.vat_regime || "",
+      irpf_method: prof.irpf_method || "",
+      address_line: address.address_line || "",
+      postal_code: address.postal_code || "",
+      city: address.city || "",
+      province: address.province || "",
+    });
+  };
+
+  const buildCensusPayload = () => ({
+    taxpayer_identity: {
+      nif_nie: fiscalForm.nif_nie.trim(),
+      full_name: fiscalForm.full_name.trim(),
+      fiscal_address: {
+        address_line: fiscalForm.address_line.trim(),
+        postal_code: fiscalForm.postal_code.trim(),
+        city: fiscalForm.city.trim(),
+        province: fiscalForm.province.trim(),
+      },
+      resident_status: true,
+    },
+    professional_registration: {
+      vat_regime: fiscalForm.vat_regime,
+      irpf_method: fiscalForm.irpf_method.trim(),
+      economic_activities: fiscalForm.iae.trim()
+        ? [{ code: fiscalForm.iae.trim() }]
+        : [],
+    },
+  });
+
+  const censusErrorMessage = (response) => {
+    const detail = response?.data?.detail;
+    if (Array.isArray(detail)) return detail[0]?.msg;
+    if (typeof detail === "string") return detail;
+    return response?.data?.message || "Could not save your fiscal profile. Please try again.";
+  };
+
+  // Cards the user sees: API types with client-facing labels, plus White Label
+  // which has no backend id yet.
+  const displayTypes = useMemo(
+    () => [
+      ...userTypes.map((type) => ({ ...type, ...(USER_TYPE_DISPLAY[type.id] || {}), id: type.id })),
+      WHITE_LABEL_CARD,
+    ],
+    [userTypes]
+  );
+
+  const fetchUserTypes = async () => {
+    setTypesLoading(true);
+    const response = await getUserTypes();
+    if (response?.status === 200) {
+      setUserTypes(response.data);
+    } else {
+      toast.error("Could not load account types. Please refresh the page.");
+    }
+    setTypesLoading(false);
   };
 
   useEffect(() => {
-    const fetchUserTypes = async () => {
-      const response = await getUserTypes();
-      if (response?.status === 200) {
-        setUserTypes(response.data);
-      } else {
-        toast.error("Could not load account types. Please refresh the page.");
-      }
-      setTypesLoading(false);
-    };
+    let user = {};
+    try {
+      user = JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      user = {};
+    }
+    const savedCountry = user?.country?.toUpperCase();
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    if (user?.user_type && user?.census_data_uploaded) {
+    if (savedCountry === "IT") {
+      setTypesLoading(false);
+      return;
+    }
+
+    if (savedCountry === "ES" && user?.user_type && user?.census_data_uploaded) {
       navigate("/app/dashboard", { replace: true });
       return;
     }
 
-    fetchUserTypes();
+    if (savedCountry !== "ES") {
+      setTypesLoading(false);
+      return;
+    }
 
+    fetchUserTypes();
     if (user?.user_type) {
       setSelected(user.user_type);
       setShowAEATModal(true);
+      getLatestCensusRecord().then((record) => {
+        if (record) {
+          applyCensusRecord(record);
+          setAeatStep(4);
+        }
+      });
     }
-  }, []);
+  }, [navigate]);
+
+  const handleCountryContinue = async () => {
+    if (!selectedCountry) return;
+    setCountryLoading(true);
+    try {
+      const response = await selectCountry(selectedCountry);
+      if (response?.status === 200) {
+        const savedCountry = (response.data?.country || selectedCountry).toUpperCase();
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...user,
+            country: savedCountry,
+            country_name: response.data?.country_name,
+          })
+        );
+
+        if (savedCountry === "IT") {
+          setCountryMessage(response.data?.message || "Italy is coming soon.");
+          setIsWaitlisted(true);
+          return;
+        }
+
+        setCountrySaved(true);
+        await fetchUserTypes();
+        if (user?.user_type && user?.census_data_uploaded) {
+          navigate("/app/dashboard", { replace: true });
+          return;
+        }
+        if (user?.user_type) {
+          setSelected(user.user_type);
+          setShowAEATModal(true);
+          getLatestCensusRecord().then((record) => {
+            if (record) {
+              applyCensusRecord(record);
+              setAeatStep(4);
+            }
+          });
+        }
+        toast.success(response.data?.message || "Spain selected successfully.");
+      } else {
+        const detail = response?.data?.detail;
+        const message = Array.isArray(detail)
+          ? detail[0]?.msg
+          : detail || response?.data?.message;
+        toast.error(message || "Failed to save your country. Please try again.");
+      }
+    } catch {
+      toast.error("Network error. Please check your connection and try again.");
+    } finally {
+      setCountryLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!showAEATModal) {
-      setTimeLeft(VERIFICATION_LIMIT);
-      return;
+      setAeatStep(1);
     }
-    const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(interval);
-          setShowAEATModal(false);
-          toast.error("3-minute verification window expired. Please try again.");
-          navigate("/onboarding");
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
   }, [showAEATModal]);
 
   const handleContinue = async () => {
     if (!selected) return;
+
+    // White Label has no backend user type yet, so it never reaches the API
+    // or the Spanish census flow.
+    if (selected === WHITE_LABEL_ID) {
+      setWhiteLabelInterest(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await selectUserType(selected);
       if (response?.status === 200) {
         const { user_type } = response.data;
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...user, user_type }));
         localStorage.setItem("user_type", user_type);
         setShowAEATModal(true);
       } else {
@@ -120,9 +361,37 @@ const Onboarding = () => {
     }
   };
 
-  const handleAEATComplete = () => {
-    toast.success("Verification complete! Welcome to Contia365.");
-    navigate("/app/dashboard");
+  const handleAEATComplete = async () => {
+    if (!fiscalForm.nif_nie.trim() || !fiscalForm.iae.trim() || !fiscalForm.vat_regime) {
+      toast.error("Please fill NIF/NIE, IAE, and VAT regime.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = buildCensusPayload();
+      const response = censusRecordId
+        ? await updateCensusProfile(censusRecordId, payload)
+        : await saveCensusProfile(payload);
+
+      if (response?.status === 200 || response?.status === 201) {
+        const saved = typeof response.data === "object" ? response.data : null;
+        applyCensusRecord(saved);
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...user, census_data_uploaded: true })
+        );
+        toast.success("Fiscal profile saved. Welcome to Contia365.");
+        navigate("/app/dashboard");
+      } else {
+        toast.error(censusErrorMessage(response));
+      }
+    } catch {
+      toast.error("Network error. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFileUpload = async (event) => {
@@ -143,7 +412,12 @@ const Onboarding = () => {
       const response = await uploadCensusDocument(file);
       if (response?.status === 201 || response?.status === 200) {
         setUploadedFile(file);
-        toast.success("Census document uploaded. You can now complete verification.");
+        const uploadedRecord = response?.data && typeof response.data === "object" ? response.data : null;
+        applyCensusRecord(uploadedRecord);
+        const latest = await getLatestCensusRecord();
+        if (latest) applyCensusRecord(latest);
+        toast.success("Census document uploaded. Review and confirm your fiscal details.");
+        setAeatStep(4);
       } else if (response?.status === 422) {
         const detail = response?.data?.detail;
         const isAIError = typeof detail === "string" && detail.includes("AI extraction failed");
@@ -251,6 +525,64 @@ const Onboarding = () => {
       );
     }
 
+    if (aeatStep === 4) {
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+      return (
+        <div className="space-y-4">
+          <h4 className="text-base font-semibold text-center text-slate-800">Step 4: Confirm fiscal profile</h4>
+          <p className="text-sm text-slate-500 text-center">
+            {censusRecordId
+              ? "We filled these fields from your census document. Check them and save."
+              : "Enter your Spain fiscal details. You can still upload the census PDF in the previous step."}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>NIF / NIE <span className="text-red-500">*</span></label>
+              <input className={inputClass} value={fiscalForm.nif_nie} onChange={(e) => updateFiscalField("nif_nie", e.target.value)} placeholder="12345678Z" />
+            </div>
+            <div>
+              <label className={labelClass}>Full legal name</label>
+              <input className={inputClass} value={fiscalForm.full_name} onChange={(e) => updateFiscalField("full_name", e.target.value)} placeholder="Nombre y apellidos" />
+            </div>
+            <div>
+              <label className={labelClass}>IAE / activity code <span className="text-red-500">*</span></label>
+              <input className={inputClass} value={fiscalForm.iae} onChange={(e) => updateFiscalField("iae", e.target.value)} placeholder="e.g. 763" />
+            </div>
+            <div>
+              <label className={labelClass}>VAT regime <span className="text-red-500">*</span></label>
+              <select className={inputClass} value={fiscalForm.vat_regime} onChange={(e) => updateFiscalField("vat_regime", e.target.value)}>
+                <option value="">Select regime</option>
+                {VAT_REGIMES.map((regime) => (
+                  <option key={regime.value} value={regime.value}>{regime.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>IRPF method</label>
+              <input className={inputClass} value={fiscalForm.irpf_method} onChange={(e) => updateFiscalField("irpf_method", e.target.value)} placeholder="Optional" />
+            </div>
+            <div>
+              <label className={labelClass}>Address</label>
+              <input className={inputClass} value={fiscalForm.address_line} onChange={(e) => updateFiscalField("address_line", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Postal code</label>
+              <input className={inputClass} value={fiscalForm.postal_code} onChange={(e) => updateFiscalField("postal_code", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>City</label>
+              <input className={inputClass} value={fiscalForm.city} onChange={(e) => updateFiscalField("city", e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Province</label>
+              <input className={inputClass} value={fiscalForm.province} onChange={(e) => updateFiscalField("province", e.target.value)} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Step 3
     return (
       <div className="space-y-4">
@@ -263,7 +595,7 @@ const Onboarding = () => {
         </div>
         <h4 className="text-base font-semibold text-center text-slate-800">Step 3: Upload Census Document</h4>
         <p className="text-sm text-slate-500 text-center">
-          Upload the downloaded PDF or Word file to complete your verification.
+          Upload the census certificate, then confirm NIF, IAE, and VAT regime on the next step.
         </p>
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
           <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Accepted formats</p>
@@ -321,9 +653,157 @@ const Onboarding = () => {
     );
   };
 
+  if (isWaitlisted) {
+    let email = "";
+    try {
+      email = JSON.parse(localStorage.getItem("user") || "{}")?.email || "";
+    } catch {
+      email = "";
+    }
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
+          <div className="text-6xl mb-5" aria-hidden="true">🇮🇹</div>
+          <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
+            Coming soon
+          </span>
+          <h1 className="mt-4 text-3xl font-bold text-slate-800">Contia365 Italy</h1>
+          <p className="mt-3 text-slate-500">
+            {countryMessage || "Italy is not available yet. Your country preference has been saved and you are on the waitlist."}
+          </p>
+          {email && (
+            <p className="mt-4 text-sm text-slate-600">
+              We will send launch updates to <span className="font-semibold text-slate-800">{email}</span>.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/sign-in")}
+            className="mt-7 px-6 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!countrySaved) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-3xl">
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            </div>
+            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 1 of 3</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Select your country</h1>
+            <p className="text-slate-500">Choose where you operate so Contia365 can apply the correct fiscal rules.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+            {COUNTRIES.map((country) => {
+              const isSelected = selectedCountry === country.code;
+              const isAvailable = country.code === "ES";
+              return (
+                <button
+                  key={country.code}
+                  type="button"
+                  onClick={() => setSelectedCountry(country.code)}
+                  aria-pressed={isSelected}
+                  className={`relative text-left p-6 rounded-2xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2 ${
+                    isSelected
+                      ? "border-[#027570] bg-white shadow-xl scale-[1.01]"
+                      : "border-slate-200 bg-white hover:border-[#027570]/60 hover:shadow-md"
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#027570] flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="text-5xl mb-5" aria-hidden="true">{country.flag}</div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-xl font-bold text-slate-800">{country.name}</h2>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                      isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {country.status}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-slate-500">{country.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleCountryContinue}
+              disabled={!selectedCountry || countryLoading}
+              className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+            >
+              {countryLoading
+                ? "Saving..."
+                : selectedCountry === "IT"
+                  ? "Join waitlist"
+                  : "Continue"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (whiteLabelInterest) {
+    let email = "";
+    try {
+      email = JSON.parse(localStorage.getItem("user") || "{}")?.email || "";
+    } catch {
+      email = "";
+    }
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
+          <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-r from-[#027570] to-[#038a84] flex items-center justify-center text-white">
+            {TYPE_ICONS[WHITE_LABEL_ID]}
+          </div>
+          <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
+            Coming soon
+          </span>
+          <h1 className="mt-4 text-3xl font-bold text-slate-800">White Label</h1>
+          <p className="mt-3 text-slate-500">
+            Partner accounts are not open yet. We have noted your interest and will contact you
+            before launch.
+          </p>
+          {email && (
+            <p className="mt-4 text-sm text-slate-600">
+              We will send updates to <span className="font-semibold text-slate-800">{email}</span>.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => { setWhiteLabelInterest(false); setSelected(null); }}
+            className="mt-7 px-6 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Choose another account type
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-4xl">
         <div className="text-center mb-10">
           <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,13 +812,14 @@ const Onboarding = () => {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to Contia365</h1>
+          <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 2 of 3</p>
           <p className="text-slate-500 text-base">Select your account type to get started</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {typesLoading
-            ? [1, 2, 3].map((i) => <CardSkeleton key={i} />)
-            : userTypes.map((type) => (
+            ? [1, 2, 3, 4].map((i) => <CardSkeleton key={i} />)
+            : displayTypes.map((type) => (
                 <button
                   key={type.id}
                   type="button"
@@ -365,6 +846,13 @@ const Onboarding = () => {
                   <span className={`text-xs font-medium mb-2 ${selected === type.id ? "text-white/80" : "text-slate-400"}`}>
                     {type.subtitle}
                   </span>
+                  {type.comingSoon && (
+                    <span className={`mb-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                      selected === type.id ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      Coming soon
+                    </span>
+                  )}
                   <p className={`text-xs leading-relaxed ${selected === type.id ? "text-white/90" : "text-slate-500"}`}>
                     {type.description}
                   </p>
@@ -377,15 +865,19 @@ const Onboarding = () => {
           <button
             onClick={handleContinue}
             disabled={!selected || isLoading || typesLoading}
-            className="px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+            className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
           >
-            {isLoading ? "Setting up..." : "Continue"}
+            {isLoading
+              ? "Setting up..."
+              : selected === WHITE_LABEL_ID
+                ? "Join waitlist"
+                : "Continue"}
           </button>
         </div>
 
         <Modal open={showAEATModal} onClose={() => {}}>
           <ModalHeader
-            title="AEAT Verification - Required Step"
+            title="Spain fiscal profile"
             action={
               <button
                 onClick={() => { setShowAEATModal(false); navigate("/onboarding"); }}
@@ -398,28 +890,19 @@ const Onboarding = () => {
               </button>
             }
           />
-          <ModalBody>
+          <ModalBody className="max-h-[70vh] overflow-y-auto">
             <div className="space-y-4">
-              <div className="text-center mb-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-blue-800 font-medium text-sm">
-                      This verification is required to complete your registration
-                    </p>
-                  </div>
-                </div>
-                <p className="text-slate-600 text-sm">Verify your professional status within 3 minutes</p>
-                <div className={`mt-2 text-2xl font-bold tabular-nums ${timeLeft <= 30 ? "text-red-500" : "text-[#027570]"}`}>
-                  {formatTime(timeLeft)}
+              <div className="text-center mb-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-blue-800 font-medium text-sm">
+                    Upload your census document and confirm your Spanish fiscal details.
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center mb-6">
-                <div className="flex items-center space-x-4">
-                  {[1, 2, 3].map((step) => (
+              <div className="flex items-center justify-center mb-4">
+                <div className="flex items-center space-x-3">
+                  {[1, 2, 3, 4].map((step) => (
                     <div key={step} className="flex items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                         step <= aeatStep ? "bg-[#027570] text-white" : "bg-slate-200 text-slate-500"
@@ -432,7 +915,7 @@ const Onboarding = () => {
                           step
                         )}
                       </div>
-                      {step < 3 && (
+                      {step < 4 && (
                         <div className={`w-8 h-0.5 ${step < aeatStep ? "bg-[#027570]" : "bg-slate-200"}`} />
                       )}
                     </div>
@@ -444,7 +927,7 @@ const Onboarding = () => {
             </div>
           </ModalBody>
           <ModalFooter>
-            <div className="flex justify-between w-full">
+            <div className="flex justify-between w-full gap-3">
               {aeatStep > 1 ? (
                 <Button variant="secondary" onClick={() => setAeatStep(aeatStep - 1)}>
                   Back
@@ -452,21 +935,27 @@ const Onboarding = () => {
               ) : (
                 <div />
               )}
-              {aeatStep === 3 && uploadedFile ? (
+              {aeatStep === 3 && (
+                <button
+                  type="button"
+                  onClick={() => setAeatStep(4)}
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  {uploadedFile || censusRecordId ? "Review fiscal profile" : "Enter profile without document"}
+                </button>
+              )}
+              {aeatStep === 4 && (
                 <button
                   onClick={handleAEATComplete}
                   disabled={isLoading || isUploading}
                   className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
                 >
-                  {isLoading ? "Completing..." : "Complete Verification"}
+                  {isLoading ? "Saving..." : censusRecordId ? "Save fiscal profile" : "Create fiscal profile"}
                 </button>
-              ) : aeatStep < 3 ? (
-                <div className="text-xs text-slate-500 text-center">
+              )}
+              {aeatStep < 3 && (
+                <div className="text-xs text-slate-500 text-center self-center">
                   Follow the steps above to continue
-                </div>
-              ) : (
-                <div className="text-xs text-slate-500 text-center">
-                  Please upload your Census Data PDF to continue
                 </div>
               )}
             </div>

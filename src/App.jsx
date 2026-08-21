@@ -39,6 +39,17 @@ import InvoiceView from "./components/pages/app/invoices/InvoiceView";
 import Compliance from "./components/pages/app/Compliance";
 import CertificateSettings from "./components/pages/app/CertificateSettings";
 
+const CountryProtectedApp = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return user?.country?.toUpperCase() === "ES"
+      ? <AppPage />
+      : <Navigate to="/onboarding" replace />;
+  } catch {
+    return <Navigate to="/onboarding" replace />;
+  }
+};
+
 function App() {
   return (
     <ThemeProvider>
@@ -68,7 +79,7 @@ function App() {
             <Route path="/invoices/v3" element={<InvoicesV3 />} />
 
             {/* App routes */}
-            <Route path="/app" element={<AppPage />}>
+            <Route path="/app" element={<CountryProtectedApp />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AppDashboard />} />
               <Route path="vouchers" element={<Vouchers />}>

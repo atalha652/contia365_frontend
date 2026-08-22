@@ -25,7 +25,7 @@ const MonthDataTable = ({ month, semester, year }) => {
     const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
     // State management
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [entries, setEntries] = useState([]);
     const [panelOpen, setPanelOpen] = useState(false);
@@ -89,7 +89,10 @@ const MonthDataTable = ({ month, semester, year }) => {
 
     // Fetch ledger entries from backend
     const fetchLedgers = async () => {
-        if (!userId) return;
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             setError("");

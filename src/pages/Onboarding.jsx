@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../components/ui/Modal";
@@ -8,8 +8,11 @@ import {
   selectCountry,
   selectUserType,
   uploadCensusDocument,
-  getLatestCensusRecord,
+  getMyFiscalProfile,
+  downloadCensusDocument,
   getCensusRecordId,
+  getOnboardingStatus,
+  syncOnboardingStatus,
   saveCensusProfile,
   updateCensusProfile,
 } from "../api/apiFunction/onboardingServices";
@@ -26,8 +29,8 @@ const COUNTRIES = [
     code: "IT",
     flag: "🇮🇹",
     name: "Italy",
-    status: "Coming soon",
-    description: "Select Italy to join the waitlist for launch updates.",
+    status: "Available",
+    description: "Continue with Italian account setup. A Spain fiscal profile is not required.",
   },
 ];
 
@@ -52,6 +55,10 @@ const USER_TYPE_DISPLAY = {
     description: "Tax advisor managing accounting and reports for multiple clients.",
   },
 };
+
+// Advisor is still returned by the API and kept for existing accounts, but the
+// client onboarding offers Person, Business, and White Label only.
+const HIDDEN_TYPE_IDS = ["advisor"];
 
 const WHITE_LABEL_CARD = {
   id: WHITE_LABEL_ID,
@@ -134,22 +141,9 @@ const Onboarding = () => {
       return null;
     }
   });
-  const [countrySaved, setCountrySaved] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "{}")?.country?.toUpperCase() === "ES";
-    } catch {
-      return false;
-    }
-  });
-  const [isWaitlisted, setIsWaitlisted] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "{}")?.country?.toUpperCase() === "IT";
-    } catch {
-      return false;
-    }
-  });
+  const [onboardingStatus, setOnboardingStatus] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [countryLoading, setCountryLoading] = useState(false);
-  const [countryMessage, setCountryMessage] = useState("");
   const [userTypes, setUserTypes] = useState([]);
   const [typesLoading, setTypesLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -159,6 +153,8 @@ const Onboarding = () => {
   const [aeatStep, setAeatStep] = useState(1);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [censusDocuments, setCensusDocuments] = useState([]);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState(null);
   const [censusRecordId, setCensusRecordId] = useState(null);
   const [fiscalForm, setFiscalForm] = useState(EMPTY_FISCAL_FORM);
 
@@ -166,13 +162,14 @@ const Onboarding = () => {
     setFiscalForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const applyCensusRecord = (record) => {
+  const applyCensusRecord = useCallback((record) => {
     if (!record) return;
     const id = getCensusRecordId(record);
     if (id) setCensusRecordId(id);
     const identity = record.taxpayer_identity || {};
     const address = identity.fiscal_address || {};
     const prof = record.professional_registration || {};
+    setCensusDocuments(Array.isArray(record.documents) ? record.documents : []);
     setFiscalForm({
       nif_nie: identity.nif_nie || "",
       full_name: identity.full_name || "",
@@ -184,7 +181,7 @@ const Onboarding = () => {
       city: address.city || "",
       province: address.province || "",
     });
-  };
+  }, []);
 
   const buildCensusPayload = () => ({
     taxpayer_identity: {
@@ -218,13 +215,15 @@ const Onboarding = () => {
   // which has no backend id yet.
   const displayTypes = useMemo(
     () => [
-      ...userTypes.map((type) => ({ ...type, ...(USER_TYPE_DISPLAY[type.id] || {}), id: type.id })),
+      ...userTypes
+        .filter((type) => !HIDDEN_TYPE_IDS.includes(type.id))
+        .map((type) => ({ ...type, ...(USER_TYPE_DISPLAY[type.id] || {}), id: type.id })),
       WHITE_LABEL_CARD,
     ],
     [userTypes]
   );
 
-  const fetchUserTypes = async () => {
+  const fetchUserTypes = useCallback(async () => {
     setTypesLoading(true);
     const response = await getUserTypes();
     if (response?.status === 200) {
@@ -233,44 +232,65 @@ const Onboarding = () => {
       toast.error("Could not load account types. Please refresh the page.");
     }
     setTypesLoading(false);
-  };
+  }, []);
+
+  const loadCanonicalFiscalProfile = useCallback(async () => {
+    const record = await getMyFiscalProfile();
+    if (record) {
+      applyCensusRecord(record);
+      setAeatStep(4);
+    }
+    return record;
+  }, [applyCensusRecord]);
+
+  const refreshOnboardingStatus = useCallback(async () => {
+    const status = await getOnboardingStatus();
+    if (!status) return null;
+    syncOnboardingStatus(status);
+    setOnboardingStatus(status);
+    setSelectedCountry(status.country_selected?.toUpperCase() || null);
+    setSelected(status.user_type_selected || null);
+    return status;
+  }, []);
 
   useEffect(() => {
-    let user = {};
-    try {
-      user = JSON.parse(localStorage.getItem("user") || "{}");
-    } catch {
-      user = {};
-    }
-    const savedCountry = user?.country?.toUpperCase();
+    let cancelled = false;
+    setStatusLoading(true);
+    getOnboardingStatus()
+      .then((status) => {
+        if (cancelled || !status) return;
+        syncOnboardingStatus(status);
+        setOnboardingStatus(status);
+        setSelectedCountry(status.country_selected?.toUpperCase() || null);
+        setSelected(status.user_type_selected || null);
+      })
+      .finally(() => {
+        if (!cancelled) setStatusLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    if (savedCountry === "IT") {
-      setTypesLoading(false);
-      return;
-    }
-
-    if (savedCountry === "ES" && user?.user_type && user?.census_data_uploaded) {
+  useEffect(() => {
+    const currentStep = onboardingStatus?.current_step;
+    if (!currentStep) return;
+    if (currentStep === "completed") {
       navigate("/app/dashboard", { replace: true });
       return;
     }
-
-    if (savedCountry !== "ES") {
-      setTypesLoading(false);
+    if (currentStep === "user_type_selection") {
+      setShowAEATModal(false);
+      fetchUserTypes();
       return;
     }
-
-    fetchUserTypes();
-    if (user?.user_type) {
-      setSelected(user.user_type);
+    if (currentStep === "fiscal_profile") {
       setShowAEATModal(true);
-      getLatestCensusRecord().then((record) => {
-        if (record) {
-          applyCensusRecord(record);
-          setAeatStep(4);
-        }
-      });
+      loadCanonicalFiscalProfile();
+      return;
     }
-  }, [navigate]);
+    setShowAEATModal(false);
+  }, [onboardingStatus?.current_step, navigate, fetchUserTypes, loadCanonicalFiscalProfile]);
 
   const handleCountryContinue = async () => {
     if (!selectedCountry) return;
@@ -278,40 +298,8 @@ const Onboarding = () => {
     try {
       const response = await selectCountry(selectedCountry);
       if (response?.status === 200) {
-        const savedCountry = (response.data?.country || selectedCountry).toUpperCase();
-        const user = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...user,
-            country: savedCountry,
-            country_name: response.data?.country_name,
-          })
-        );
-
-        if (savedCountry === "IT") {
-          setCountryMessage(response.data?.message || "Italy is coming soon.");
-          setIsWaitlisted(true);
-          return;
-        }
-
-        setCountrySaved(true);
-        await fetchUserTypes();
-        if (user?.user_type && user?.census_data_uploaded) {
-          navigate("/app/dashboard", { replace: true });
-          return;
-        }
-        if (user?.user_type) {
-          setSelected(user.user_type);
-          setShowAEATModal(true);
-          getLatestCensusRecord().then((record) => {
-            if (record) {
-              applyCensusRecord(record);
-              setAeatStep(4);
-            }
-          });
-        }
-        toast.success(response.data?.message || "Spain selected successfully.");
+        toast.success(response.data?.message || "Country selected successfully.");
+        await refreshOnboardingStatus();
       } else {
         const detail = response?.data?.detail;
         const message = Array.isArray(detail)
@@ -346,11 +334,8 @@ const Onboarding = () => {
     try {
       const response = await selectUserType(selected);
       if (response?.status === 200) {
-        const { user_type } = response.data;
-        const user = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem("user", JSON.stringify({ ...user, user_type }));
-        localStorage.setItem("user_type", user_type);
-        setShowAEATModal(true);
+        toast.success(response.data?.message || "Account type selected successfully.");
+        await refreshOnboardingStatus();
       } else {
         toast.error(response?.data?.message || "Failed to save account type. Please try again.");
       }
@@ -377,13 +362,11 @@ const Onboarding = () => {
       if (response?.status === 200 || response?.status === 201) {
         const saved = typeof response.data === "object" ? response.data : null;
         applyCensusRecord(saved);
-        const user = JSON.parse(localStorage.getItem("user") || "{}");
-        localStorage.setItem(
-          "user",
-          JSON.stringify({ ...user, census_data_uploaded: true })
-        );
-        toast.success("Fiscal profile saved. Welcome to Contia365.");
-        navigate("/app/dashboard");
+        toast.success("Fiscal profile saved successfully.");
+        const status = await refreshOnboardingStatus();
+        if (status?.current_step !== "completed") {
+          toast.error(status?.next_action || "Your fiscal profile is still incomplete.");
+        }
       } else {
         toast.error(censusErrorMessage(response));
       }
@@ -414,8 +397,8 @@ const Onboarding = () => {
         setUploadedFile(file);
         const uploadedRecord = response?.data && typeof response.data === "object" ? response.data : null;
         applyCensusRecord(uploadedRecord);
-        const latest = await getLatestCensusRecord();
-        if (latest) applyCensusRecord(latest);
+        const canonicalProfile = await getMyFiscalProfile();
+        if (canonicalProfile) applyCensusRecord(canonicalProfile);
         toast.success("Census document uploaded. Review and confirm your fiscal details.");
         setAeatStep(4);
       } else if (response?.status === 422) {
@@ -437,6 +420,27 @@ const Onboarding = () => {
       toast.error("Upload failed. Please check your connection and try again.");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleDocumentDownload = async (document) => {
+    const fileId = document?.file_id;
+    if (!fileId) return;
+    setDownloadingDocumentId(fileId);
+    try {
+      const response = await downloadCensusDocument(fileId);
+      const url = URL.createObjectURL(response.data);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = document.filename || "census-document";
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Could not download this census document.");
+    } finally {
+      setDownloadingDocumentId(null);
     }
   };
 
@@ -579,6 +583,38 @@ const Onboarding = () => {
               <input className={inputClass} value={fiscalForm.province} onChange={(e) => updateFiscalField("province", e.target.value)} />
             </div>
           </div>
+          {censusDocuments.length > 0 && (
+            <div className="border border-slate-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                Linked census documents
+              </p>
+              <div className="space-y-2">
+                {censusDocuments.map((document, index) => (
+                  <div
+                    key={document.file_id || index}
+                    className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">
+                        {document.filename || "Census document"}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {document.content_type || "Document"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDocumentDownload(document)}
+                      disabled={downloadingDocumentId === document.file_id}
+                      className="text-xs font-semibold text-[#027570] hover:underline disabled:opacity-50"
+                    >
+                      {downloadingDocumentId === document.file_id ? "Downloading…" : "Download"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -653,43 +689,36 @@ const Onboarding = () => {
     );
   };
 
-  if (isWaitlisted) {
-    let email = "";
-    try {
-      email = JSON.parse(localStorage.getItem("user") || "{}")?.email || "";
-    } catch {
-      email = "";
-    }
-
+  if (statusLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
-          <div className="text-6xl mb-5" aria-hidden="true">🇮🇹</div>
-          <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
-            Coming soon
-          </span>
-          <h1 className="mt-4 text-3xl font-bold text-slate-800">Contia365 Italy</h1>
-          <p className="mt-3 text-slate-500">
-            {countryMessage || "Italy is not available yet. Your country preference has been saved and you are on the waitlist."}
-          </p>
-          {email && (
-            <p className="mt-4 text-sm text-slate-600">
-              We will send launch updates to <span className="font-semibold text-slate-800">{email}</span>.
-            </p>
-          )}
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="w-9 h-9 rounded-full border-4 border-slate-200 border-t-[#027570] animate-spin" />
+          <p className="text-sm">Loading your onboarding progress…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!onboardingStatus) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-lg">
+          <h1 className="text-xl font-semibold text-slate-800">Could not load onboarding</h1>
+          <p className="text-sm text-slate-500 mt-2">Please check your connection and try again.</p>
           <button
             type="button"
-            onClick={() => navigate("/sign-in")}
-            className="mt-7 px-6 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            onClick={() => window.location.reload()}
+            className="mt-6 px-6 py-2.5 bg-[#027570] text-white font-semibold rounded-xl"
           >
-            Back to sign in
+            Try again
           </button>
         </div>
       </div>
     );
   }
 
-  if (!countrySaved) {
+  if (onboardingStatus?.current_step === "country_selection") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-3xl">
@@ -708,7 +737,7 @@ const Onboarding = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
             {COUNTRIES.map((country) => {
               const isSelected = selectedCountry === country.code;
-              const isAvailable = country.code === "ES";
+              const isAvailable = country.status === "Available";
               return (
                 <button
                   key={country.code}
@@ -750,11 +779,7 @@ const Onboarding = () => {
               disabled={!selectedCountry || countryLoading}
               className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
             >
-              {countryLoading
-                ? "Saving..."
-                : selectedCountry === "IT"
-                  ? "Join waitlist"
-                  : "Continue"}
+              {countryLoading ? "Saving..." : "Continue"}
             </button>
           </div>
         </div>
@@ -803,7 +828,7 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-3xl">
         <div className="text-center mb-10">
           <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -816,9 +841,9 @@ const Onboarding = () => {
           <p className="text-slate-500 text-base">Select your account type to get started</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {typesLoading
-            ? [1, 2, 3, 4].map((i) => <CardSkeleton key={i} />)
+            ? [1, 2, 3].map((i) => <CardSkeleton key={i} />)
             : displayTypes.map((type) => (
                 <button
                   key={type.id}
@@ -876,20 +901,7 @@ const Onboarding = () => {
         </div>
 
         <Modal open={showAEATModal} onClose={() => {}}>
-          <ModalHeader
-            title="Spain fiscal profile"
-            action={
-              <button
-                onClick={() => { setShowAEATModal(false); navigate("/onboarding"); }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            }
-          />
+          <ModalHeader title="Spain fiscal profile" />
           <ModalBody className="max-h-[70vh] overflow-y-auto">
             <div className="space-y-4">
               <div className="text-center mb-4">

@@ -173,7 +173,7 @@ const VouchersUploads = () => {
       <div className="pt-2 pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-fg-40">Vouchers</h2>
+            <h2 className="text-lg font-semibold text-fg-40">Expenses</h2>
             <p className="text-sm text-fg-60">Manage uploads and Gmail purchases.</p>
           </div>
           {/* Header actions: Upload and Refresh placed opposite to the text, like Gmail */}

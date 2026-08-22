@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { updatePageTitle } from "../utils/titleUtils";
 import { login, loginWithGoogle } from "../api/apiFunction/authServices";
+import { syncOnboardingStatus } from "../api/apiFunction/onboardingServices";
 import { toast } from "react-toastify";
 
 const SignIn = () => {
@@ -43,9 +44,9 @@ const SignIn = () => {
       const response = await login({ email: formData.email, password: formData.password });
       if (response.status === 200) {
         localStorage.setItem("user", JSON.stringify(response.data));
+        syncOnboardingStatus(response.data);
         toast.success("Login successful! Redirecting...");
-        const { country, user_type, census_data_uploaded } = response.data;
-        if (country?.toUpperCase() === "ES" && user_type && census_data_uploaded) {
+        if (response.data?.current_step === "completed") {
           navigate("/app/dashboard");
         } else {
           navigate("/onboarding");

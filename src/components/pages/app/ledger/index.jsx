@@ -47,7 +47,19 @@ const Ledger = () => {
   // Local UI controls: search and status filter
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [timeFilter, setTimeFilter] = useState("All Time"); // New time filter state
+  const years = useMemo(() => {
+    try {
+      const startYear = user?.created_at ? new Date(user.created_at).getFullYear() : new Date().getFullYear();
+      const currentYear = new Date().getFullYear();
+      const result = [];
+      for (let y = startYear; y <= currentYear; y++) result.push(y);
+      return result;
+    } catch {
+      return [new Date().getFullYear()];
+    }
+  }, [user]);
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [selectedQuarter, setSelectedQuarter] = useState(() => Math.floor(new Date().getMonth() / 3) + 1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelSection, setPanelSection] = useState(null);
   const [panelEntry, setPanelEntry] = useState(null);
@@ -174,7 +186,7 @@ const Ledger = () => {
     return ["All Status", ...Array.from(set).sort()];
   }, [entries]);
 
-  // Filter entries based on search, transaction type, and time period
+  // Filter entries based on search, transaction type, year, and quarter
   const filtered = useMemo(() => {
     let list = entries;
     const q = searchQuery.trim().toLowerCase();
@@ -193,29 +205,21 @@ const Ledger = () => {
     if (statusFilter !== "All Status") {
       list = list.filter((e) => String(e?.invoice_data?.transaction_type || "").toUpperCase() === String(statusFilter).toUpperCase());
     }
-    
-    // Apply time filter
-    if (timeFilter !== "All Time") {
-      const now = new Date();
+
+    if (selectedYear !== "all") {
+      const yearNum = Number(selectedYear);
       list = list.filter((e) => {
         const createdAt = new Date(e?.created_at);
         if (isNaN(createdAt.getTime())) return false;
-        
-        if (timeFilter === "This Week") {
-          const weekAgo = new Date(now);
-          weekAgo.setDate(now.getDate() - 7);
-          return createdAt >= weekAgo;
-        } else if (timeFilter === "This Month") {
-          const monthAgo = new Date(now);
-          monthAgo.setMonth(now.getMonth() - 1);
-          return createdAt >= monthAgo;
-        }
-        return true;
+        if (createdAt.getFullYear() !== yearNum) return false;
+        if (selectedQuarter === "all") return true;
+        const quarter = Math.floor(createdAt.getMonth() / 3) + 1;
+        return quarter === Number(selectedQuarter);
       });
     }
-    
+
     return list;
-  }, [entries, searchQuery, statusFilter, timeFilter]);
+  }, [entries, searchQuery, statusFilter, selectedYear, selectedQuarter]);
 
   // Compute totals across filtered rows for display purposes
   const totals = useMemo(() => {
@@ -291,12 +295,26 @@ const Ledger = () => {
               <Input type="text" placeholder="Search Suppliers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
             </div>
 
-            {/* Time Period Filter */}
+            {/* Year and quarterly filters (same ranges as Tax Filing) */}
+            <div className="w-32">
+              <Select value={String(selectedYear)} onChange={(e) => setSelectedYear(e.target.value === "all" ? "all" : parseInt(e.target.value, 10))}>
+                <option value="all">All years</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </Select>
+            </div>
             <div className="w-44">
-              <Select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)}>
-                <option value="All Time">All Time</option>
-                <option value="This Week">This Week</option>
-                <option value="This Month">This Month</option>
+              <Select
+                value={String(selectedQuarter)}
+                onChange={(e) => setSelectedQuarter(e.target.value === "all" ? "all" : parseInt(e.target.value, 10))}
+                disabled={selectedYear === "all"}
+              >
+                <option value="all">All quarters</option>
+                <option value="1">Q1 · Jan – Mar</option>
+                <option value="2">Q2 · Apr – Jun</option>
+                <option value="3">Q3 · Jul – Sep</option>
+                <option value="4">Q4 · Oct – Dec</option>
               </Select>
             </div>
 

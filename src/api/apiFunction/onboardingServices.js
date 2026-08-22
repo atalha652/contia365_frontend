@@ -1,5 +1,5 @@
 import { ONBOARDING_URL, CENSUS_URL } from "../restEndpoint";
-import { httpGet, httpPost, httpPatch, httpPostBlob } from "../../utils/httpMethods";
+import { httpGet, httpPost, httpPatch, httpPostBlob, httpGetBlob } from "../../utils/httpMethods";
 
 const unwrapCensusRecord = (payload) => {
   if (!payload || typeof payload !== "object") return null;
@@ -9,6 +9,38 @@ const unwrapCensusRecord = (payload) => {
 
 export const getCensusRecordId = (record) =>
   record?._id || record?.id || record?.record_id || record?.census_id || null;
+
+export const syncOnboardingStatus = (status) => {
+  if (!status) return null;
+  let user = {};
+  try {
+    user = JSON.parse(localStorage.getItem("user") || "{}");
+  } catch {
+    user = {};
+  }
+  const merged = {
+    ...user,
+    country: status.country_selected ?? user.country,
+    user_type: status.user_type_selected ?? user.user_type,
+    current_step: status.current_step,
+    onboarding_completed: status.onboarding_completed,
+    fiscal_profile_completed: status.fiscal_profile_completed,
+    census_data_uploaded: status.census_data_uploaded,
+    next_action: status.next_action,
+  };
+  localStorage.setItem("user", JSON.stringify(merged));
+  return merged;
+};
+
+export const getOnboardingStatus = async () => {
+  try {
+    const response = await httpGet({ url: ONBOARDING_URL + "/status" });
+    return response?.data || null;
+  } catch (err) {
+    console.error("Get onboarding status error:", err);
+    return null;
+  }
+};
 
 export const selectCountry = async (country) => {
   try {
@@ -61,14 +93,23 @@ export const uploadCensusDocument = async (file) => {
   }
 };
 
-export const getLatestCensusRecord = async () => {
+export const getMyFiscalProfile = async () => {
   try {
-    const response = await httpGet({ url: CENSUS_URL + "/latest" });
+    const response = await httpGet({ url: `${CENSUS_URL}/me` });
     return unwrapCensusRecord(response?.data);
   } catch (err) {
-    console.error("Get latest census record error:", err);
+    if (err?.response?.status !== 404) {
+      console.error("Get fiscal profile error:", err);
+    }
     return null;
   }
+};
+
+export const downloadCensusDocument = async (fileId) => {
+  const response = await httpGetBlob({
+    url: `${CENSUS_URL}/documents/${fileId}`,
+  });
+  return response;
 };
 
 export const saveCensusProfile = async (payload) => {

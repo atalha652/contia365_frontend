@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { FileText, TrendingUp, Calculator, Download, Building2, Receipt, ChevronDown } from "lucide-react";
 import { updateTaxReportStatus } from "../../../../api/apiFunction/taxCalculationServices";
+import { Button } from "../../../ui";
 
 const fmt = (val) =>
   `€${Number(val || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`;
@@ -30,7 +31,7 @@ const Row = ({ label, value, bold }) => (
   </div>
 );
 
-const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onReportStatusChange }) => {
+const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onReportStatusChange, onStartFiling, startingFiling }) => {
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Priority: live calculation > saved report > null
@@ -70,6 +71,11 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
         <div className="h-16 bg-bg-60 rounded-lg border border-bd-50 flex items-center justify-center text-xs text-fg-60">
           Awaiting calculation
         </div>
+        {onStartFiling && (
+          <Button type="button" variant="primary" onClick={onStartFiling} disabled={startingFiling}>
+            {startingFiling ? "Creating draft…" : "Start filing"}
+          </Button>
+        )}
       </div>
     );
   }
@@ -279,6 +285,11 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
           )}
           {calculation.calculated_at && (
             <span>Calculated {new Date(calculation.calculated_at).toLocaleDateString("es-ES")}</span>
+          )}
+          {onStartFiling && (
+            <Button type="button" variant="primary" size="sm" onClick={onStartFiling} disabled={startingFiling}>
+              {startingFiling ? "Creating…" : "Start filing"}
+            </Button>
           )}
         </div>
       </div>

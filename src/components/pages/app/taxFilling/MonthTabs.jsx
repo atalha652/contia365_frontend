@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock, Eye } from "lucide-react";
 import MonthDataTable from "./MonthDataTable";
 
 const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, contentMode = "ledger", deadlineInfo = null, deadlines = [] }) => {
@@ -87,19 +87,62 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
     const months = isAnnualView ? [] : getMonthsForSemester(semester);
     const quarters = isAnnualView ? getAllQuarters() : [];
 
+    // Fiscal periods can only be opened once they have started. Months after the
+    // current one stay locked; closed months are viewable but read-only.
+    // The deadline calendar (contentMode "dates") must keep showing future dates.
+    const enforcePeriodLock = contentMode === "ledger";
+
+    const getMonthPeriodState = (monthName) => {
+        const monthIndex = monthNames.indexOf(monthName);
+        if (monthIndex < 0) return "current";
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        if (year > currentYear || (year === currentYear && monthIndex > currentMonth)) return "future";
+        if (year < currentYear || monthIndex < currentMonth) return "past";
+        return "current";
+    };
+
+    const isMonthLocked = (monthName) =>
+        enforcePeriodLock && getMonthPeriodState(monthName) === "future";
+
+    const isMonthReadOnly = (monthName) =>
+        enforcePeriodLock && getMonthPeriodState(monthName) === "past";
+
+    const pickSelectableMonth = (monthList) => {
+        const now = new Date();
+        if (now.getFullYear() === year) {
+            const todayMonthName = monthNames[now.getMonth()];
+            if (monthList.includes(todayMonthName)) return todayMonthName;
+        }
+        const openMonths = monthList.filter((m) => !isMonthLocked(m));
+        if (openMonths.length === 0) return null;
+        if (openMonths.length === monthList.length) return monthList[0];
+        return openMonths[openMonths.length - 1];
+    };
+
+    const renderLockedNotice = (monthName) => (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+            <div className="w-11 h-11 rounded-full bg-bg-50 border border-bd-50 flex items-center justify-center">
+                <Lock className="w-5 h-5 text-fg-60" />
+            </div>
+            <p className="text-sm font-semibold text-fg-40">
+                {monthName ? `${monthName} is locked` : "This period is locked"}
+            </p>
+            <p className="text-xs text-fg-60 max-w-sm">
+                Upcoming fiscal periods open once the month begins. Only the current month and
+                closed months are available.
+            </p>
+        </div>
+    );
+
     // Initialize active month/quarter from URL or default
     const [activeMonth, setActiveMonth] = useState(() => {
         if (isAnnualView) return null;
         const monthParam = disableUrlSync ? null : searchParams.get("month");
         const currentMonths = getMonthsForSemester(semester);
-        if (monthParam && currentMonths.includes(monthParam)) return monthParam;
-        // Default to current month if it falls in this quarter and year matches
-        const now = new Date();
-        if (now.getFullYear() === year) {
-            const todayMonthName = monthNames[now.getMonth()];
-            if (currentMonths.includes(todayMonthName)) return todayMonthName;
-        }
-        return currentMonths[0];
+        if (monthParam && currentMonths.includes(monthParam) && !isMonthLocked(monthParam)) return monthParam;
+        return pickSelectableMonth(currentMonths);
     });
 
     const [activeQuarter, setActiveQuarter] = useState(() => {
@@ -175,15 +218,13 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             const currentMonths = getMonthsForSemester(semester);
             const monthParam = disableUrlSync ? null : searchParams.get("month");
 
-            if (!currentMonths.includes(activeMonth)) {
-                const now = new Date();
-                const todayMonthName = now.getFullYear() === year ? monthNames[now.getMonth()] : null;
-                const newMonth = (todayMonthName && currentMonths.includes(todayMonthName))
-                    ? todayMonthName
-                    : currentMonths[0];
+            if (!currentMonths.includes(activeMonth) || isMonthLocked(activeMonth)) {
+                const newMonth = pickSelectableMonth(currentMonths);
                 setActiveMonth(newMonth);
-                if (!disableUrlSync) setSearchParams({ semester: semester.toString(), month: newMonth });
-            } else if (monthParam && currentMonths.includes(monthParam)) {
+                if (!disableUrlSync && newMonth) {
+                    setSearchParams({ semester: semester.toString(), month: newMonth });
+                }
+            } else if (monthParam && currentMonths.includes(monthParam) && !isMonthLocked(monthParam)) {
                 setActiveMonth(monthParam);
             }
             setActiveQuarter(null);
@@ -192,6 +233,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
 
     // Update URL when month changes
     const handleMonthChange = (month) => {
+        if (isMonthLocked(month)) return;
         setActiveMonth(month);
         if (!disableUrlSync) setSearchParams({ semester: semester.toString(), month });
     };
@@ -204,6 +246,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
 
     // Toggle accordion item
     const toggleMonth = (month) => {
+        if (isMonthLocked(month)) return;
         setExpandedMonths(prev =>
             prev.includes(month)
                 ? prev.filter(m => m !== month)
@@ -220,7 +263,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
         const monthIndex = monthIndexByName[monthName];
         if (monthIndex === undefined) return null;
 
-        // Build day -> [modelo, ...] map from deadlines array (parse as local date)
+        // Group fiscal obligations by deadline date. Status comes from the backend.
         const deadlineDayMap = {};
         if (Array.isArray(deadlines) && deadlines.length > 0) {
             deadlines.forEach((d) => {
@@ -228,11 +271,31 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                 const [yyyy, mm, dd] = d.deadline_date.split("-").map(Number);
                 if (yyyy === year && mm - 1 === monthIndex) {
                     if (!deadlineDayMap[dd]) deadlineDayMap[dd] = [];
-                    deadlineDayMap[dd].push(d.modelo);
+                    deadlineDayMap[dd].push(d);
                 }
             });
         }
         const hasDeadlines = Object.keys(deadlineDayMap).length > 0;
+        const statusPriority = { overdue: 4, due: 3, upcoming: 2, completed: 1 };
+        const statusClasses = {
+            upcoming: "bg-blue-500/15 text-blue-600 border-blue-400/40",
+            due: "bg-orange-500/15 text-orange-600 border-orange-400/40",
+            overdue: "bg-red-500/15 text-red-600 border-red-400/40",
+            completed: "bg-green-500/15 text-green-600 border-green-400/40",
+        };
+        const statusDotClasses = {
+            upcoming: "bg-blue-500",
+            due: "bg-orange-500",
+            overdue: "bg-red-500",
+            completed: "bg-green-500",
+        };
+        const getPrimaryStatus = (obligations = []) =>
+            obligations.reduce((primary, obligation) => {
+                const status = String(obligation?.status || "upcoming").toLowerCase();
+                return (statusPriority[status] || 0) > (statusPriority[primary] || 0)
+                    ? status
+                    : primary;
+            }, "completed");
 
         const firstDay = new Date(year, monthIndex, 1);
         const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
@@ -256,26 +319,30 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                         const dayNum = i + 1;
                         const isToday = todayDate === dayNum;
-                        const modelos = deadlineDayMap[dayNum];
-                        const isDeadlineDay = Boolean(modelos?.length);
+                        const obligations = deadlineDayMap[dayNum];
+                        const isDeadlineDay = Boolean(obligations?.length);
+                        const primaryStatus = isDeadlineDay ? getPrimaryStatus(obligations) : null;
                         return (
                             <div
                                 key={dayNum}
-                                title={isDeadlineDay ? `Modelo ${modelos.join(", ")}` : undefined}
+                                title={isDeadlineDay
+                                    ? obligations.map((obligation) => `Modelo ${obligation.modelo}: ${obligation.status}`).join("\n")
+                                    : undefined}
                                 className={`
                                     relative h-9 rounded-lg flex flex-col items-center justify-center
                                     text-sm font-medium border transition-colors
-                                    ${isToday
-                                        ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white border-transparent shadow-md"
-                                        : isDeadlineDay
-                                            ? "bg-orange-500/15 text-orange-600 border-orange-400/40"
+                                    ${isDeadlineDay
+                                        ? statusClasses[primaryStatus]
+                                        : isToday
+                                            ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white border-transparent shadow-md"
                                             : "bg-bg-60 text-fg-40 border-bd-50"
                                     }
+                                    ${isToday && isDeadlineDay ? "ring-2 ring-ac-02 ring-offset-1 ring-offset-bg-60" : ""}
                                 `}
                             >
                                 <span>{dayNum}</span>
-                                {isDeadlineDay && !isToday && (
-                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-orange-500" />
+                                {isDeadlineDay && (
+                                    <span className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${statusDotClasses[primaryStatus]}`} />
                                 )}
                             </div>
                         );
@@ -284,12 +351,15 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                 {/* Legend */}
                 {hasDeadlines && (
                     <div className="flex flex-wrap gap-2 pt-1">
-                        {Object.entries(deadlineDayMap).map(([day, modelos]) => (
-                            <span key={day} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-orange-500/15 text-orange-600 border border-orange-400/30">
-                                <span className="font-semibold">{modelos.join(", ")}</span>
+                        {Object.entries(deadlineDayMap).map(([day, obligations]) => {
+                            const primaryStatus = getPrimaryStatus(obligations);
+                            return (
+                            <span key={day} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border ${statusClasses[primaryStatus]}`}>
+                                <span className="font-semibold">{obligations.map((obligation) => obligation.modelo).join(", ")}</span>
                                 <span className="opacity-70">· {day} {monthName}</span>
                             </span>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -325,7 +395,9 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                 <div className="flex-1 overflow-auto bg-bg-60 rounded-xl border border-bd-50 shadow-inner">
                     <div className="p-4 space-y-3">
                         {quarters.find(q => q.id === activeQuarter)?.months.map((month, index) => {
-                            const isExpanded = expandedMonths.includes(month);
+                            const locked = isMonthLocked(month);
+                            const readOnly = isMonthReadOnly(month);
+                            const isExpanded = !locked && expandedMonths.includes(month);
 
                             return (
                                 <div
@@ -335,7 +407,9 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                                     {/* Accordion Header */}
                                     <button
                                         onClick={() => toggleMonth(month)}
-                                        className="w-full px-5 py-4 flex items-center justify-between bg-gradient-to-r from-bg-60 to-bg-70 hover:from-bg-50 hover:to-bg-60 transition-all duration-200"
+                                        disabled={locked}
+                                        title={locked ? `${month} opens when the month starts` : undefined}
+                                        className={`w-full px-5 py-4 flex items-center justify-between bg-gradient-to-r from-bg-60 to-bg-70 transition-all duration-200 ${locked ? "cursor-not-allowed opacity-60" : "hover:from-bg-50 hover:to-bg-60"}`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`
@@ -346,7 +420,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                                                     : 'bg-bg-50 text-fg-60'
                                                 }
                                             `}>
-                                                {index + 1}
+                                                {locked ? <Lock className="w-4 h-4" /> : index + 1}
                                             </div>
                                             <h3 className={`
                                                 text-lg font-semibold transition-colors
@@ -354,12 +428,25 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                                             `}>
                                                 {month}
                                             </h3>
+                                            {locked && (
+                                                <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-bg-50 border border-bd-50 text-fg-60">
+                                                    Locked
+                                                </span>
+                                            )}
+                                            {readOnly && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-bg-50 border border-bd-50 text-fg-60">
+                                                    <Eye className="w-3 h-3" />
+                                                    Read-only
+                                                </span>
+                                            )}
                                         </div>
                                         <div className={`
                                             transition-transform duration-300
                                             ${isExpanded ? 'rotate-180' : 'rotate-0'}
                                         `}>
-                                            <ChevronDown className={`w-5 h-5 ${isExpanded ? 'text-ac-02' : 'text-fg-60'}`} />
+                                            {!locked && (
+                                                <ChevronDown className={`w-5 h-5 ${isExpanded ? 'text-ac-02' : 'text-fg-60'}`} />
+                                            )}
                                         </div>
                                     </button>
 
@@ -389,29 +476,50 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
             {/* Enhanced Month Tabs with pill design */}
             <div className="flex-shrink-0 mb-6">
                 <div className="inline-flex gap-2 p-1.5 bg-bg-50 rounded-xl border border-bd-50 shadow-inner">
-                    {months.map((month) => (
-                        <button
-                            key={month}
-                            onClick={() => handleMonthChange(month)}
-                            className={`
+                    {months.map((month) => {
+                        const locked = isMonthLocked(month);
+                        return (
+                            <button
+                                key={month}
+                                onClick={() => handleMonthChange(month)}
+                                disabled={locked}
+                                title={locked ? `${month} opens when the month starts` : undefined}
+                                className={`
                 relative px-6 py-2.5 text-sm font-medium rounded-lg
+                inline-flex items-center gap-2
                 transition-all duration-300 ease-out
-                ${activeMonth === month
-                                    ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white shadow-lg shadow-ac-02/30 scale-105"
-                                    : "text-fg-60 hover:text-fg-40 hover:bg-bg-40"
-                                }
+                ${locked
+                                        ? "text-fg-60/50 cursor-not-allowed"
+                                        : activeMonth === month
+                                            ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white shadow-lg shadow-ac-02/30 scale-105"
+                                            : "text-fg-60 hover:text-fg-40 hover:bg-bg-40"
+                                    }
               `}
-                        >
-                            {month}
-                        </button>
-                    ))}
+                            >
+                                {locked && <Lock className="w-3.5 h-3.5" />}
+                                {month}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Month Data Table - Scrollable with enhanced container */}
             <div className="flex-1 overflow-auto bg-bg-60 rounded-xl border border-bd-50 shadow-inner">
                 <div className="p-4">
-                    <MonthDataTable month={activeMonth} semester={semester} year={year} />
+                    {activeMonth ? (
+                        <>
+                            {isMonthReadOnly(activeMonth) && (
+                                <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-50 border border-bd-50 text-xs text-fg-60">
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>{activeMonth} is closed — read-only.</span>
+                                </div>
+                            )}
+                            <MonthDataTable month={activeMonth} semester={semester} year={year} />
+                        </>
+                    ) : (
+                        renderLockedNotice(null)
+                    )}
                 </div>
             </div>
         </div>

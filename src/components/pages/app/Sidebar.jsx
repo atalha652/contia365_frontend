@@ -12,7 +12,7 @@ import {
   LogOut,
   KeyRound,
   CheckSquare,
-  Landmark,
+  // Landmark,
   FilePlus,
   ShieldCheck,
   Settings,
@@ -47,11 +47,11 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   // Sidebar navigation items for app sections (renamed Actions -> Execution)
   const items = [
     { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
-    { to: "/app/vouchers", label: "Vouchers", icon: FileText },
+    { to: "/app/expenses", label: "Expenses", icon: FileText },
     { to: "/app/requests", label: "Requests", icon: CheckSquare },
     { to: "/app/execution", label: "Execution", icon: Receipt },
     { to: "/app/invoices", label: "Invoices", icon: FilePlus },
-    { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
+    // { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
     { to: "/app/ledger", label: "Ledger", icon: BookOpen },
     { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
     { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },

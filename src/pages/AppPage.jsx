@@ -194,13 +194,14 @@ const AppPage = () => {
     const path = location.pathname.toLowerCase();
     let label = "App";
     if (path.includes("/app/dashboard")) label = "Dashboard";
-    else if (path.includes("/app/vouchers")) label = "Vouchers";
+    else if (path.includes("/app/expenses") || path.includes("/app/vouchers") || path.includes("/app/expences")) label = "Expenses";
     else if (path.includes("/app/requests")) label = "Requests";
     // Update tab name and route: Actions -> Execution
     else if (path.includes("/app/execution")) label = "Execution";
     else if (path.includes("/app/bank-reconciliation")) label = "Bank Reconciliation";
+    else if (path.includes("/app/tax-filings/cases")) label = "Tax Filings";
+    else if (path.includes("/app/tax-filings")) label = "Tax Filing & Compliance";
     else if (path.includes("/app/ledger")) label = "Ledger";
-    else if (path.includes("/app/expences")) label = "Expenses";
     else if (path.includes("/app/payroll")) label = "Payroll";
     else if (path.includes("/app/invoices")) label = "Invoices";
     else if (path.includes("/app/compliance")) label = "Chain Integrity";

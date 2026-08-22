@@ -56,8 +56,14 @@ const SignUp = () => {
 
       const response = await signUp(form);
       if (response.status === 201 || response.status === 200) {
-        toast.success("Account created! Completing your profile...");
-        navigate("/onboarding");
+        if (response.data?.access_token) {
+          localStorage.setItem("user", JSON.stringify(response.data));
+          toast.success("Account created! Completing your profile...");
+          navigate("/onboarding");
+        } else {
+          toast.success("Account created! Sign in to complete your profile.");
+          navigate("/sign-in");
+        }
       } else {
         throw new Error(response.data?.detail || response.data?.message || "Registration failed. Please try again.");
       }

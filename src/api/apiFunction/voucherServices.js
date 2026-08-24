@@ -35,6 +35,57 @@ export const uploadVouchers = async ({ user_id, files, title, description, categ
   }
 };
 
+// Create a voucher manually (JSON only). No files and no OCR — scanned
+// documents still go through uploadVouchers.
+export const createManualVoucher = async ({
+  user_id,
+  title,
+  description,
+  category,
+  period,
+  transaction_type,
+  supplier,
+  customer,
+  invoice_number,
+  invoice_date,
+  items,
+  totals,
+}) => {
+  try {
+    if (!user_id) throw new Error("Missing user_id for manual voucher");
+    if (!title) throw new Error("Please provide a title");
+    if (!category) throw new Error("Please select a category");
+    if (!period) throw new Error("Please select a tax period");
+    if (transaction_type && !["credit", "debit"].includes(transaction_type)) {
+      throw new Error("transaction_type must be either 'credit' or 'debit'");
+    }
+
+    const payload = {
+      user_id,
+      title,
+      description: description || "",
+      category,
+      period,
+    };
+    if (transaction_type) payload.transaction_type = transaction_type;
+    if (supplier) payload.supplier = supplier;
+    if (customer) payload.customer = customer;
+    if (invoice_number) payload.invoice_number = invoice_number;
+    if (invoice_date) payload.invoice_date = invoice_date;
+    if (Array.isArray(items) && items.length > 0) payload.items = items;
+    if (totals) payload.totals = totals;
+
+    const response = await httpPost({
+      url: `${VOUCHER_URL}/manual`,
+      payload,
+    });
+    return response?.data;
+  } catch (err) {
+    console.error("Create manual voucher error:", err);
+    throw err;
+  }
+};
+
 // Optional: fetch vouchers for a user (not used yet)
 export const getVouchers = async ({ user_id, status }) => {
   try {
@@ -220,7 +271,7 @@ export const getVoucherOCRJobStatus = async ({ job_id }) => {
     if (!job_id) throw new Error("Missing job_id");
     const response = await httpGet({
       url: `${SERVER_PATH}/api/accounting/ocr/job/${job_id}`,
-    }); data
+    });
     return response?.data;
   } catch (err) {
     console.error("Get voucher OCR job status error:", err);

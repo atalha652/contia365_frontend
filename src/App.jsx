@@ -28,6 +28,7 @@ import VouchersGmail from "./components/pages/app/vouchers/Gmail";
 import Requests from "./components/pages/app/Requests";
 // Use the new folder-based Ledger page for consistency with other tabs
 import Ledger from "./components/pages/app/ledger";
+import LedgerEntryView from "./components/pages/app/ledger/LedgerEntryView";
 // Execution tab uses the existing Actions component implementation
 import Actions from "./components/pages/app/actions";
 import BankTransactions from "./components/pages/app/BankTransactions";
@@ -119,6 +120,7 @@ function App() {
               {/* Renamed route: /app/execution */}
               <Route path="execution" element={<Actions />} />
               <Route path="ledger" element={<Ledger />} />
+              <Route path="ledger/:ledgerId" element={<LedgerEntryView />} />
               <Route path="tax-filings" element={<TaxFiling />} />
               <Route path="tax-filings/calculate" element={<TaxCalculations />} />
               <Route path="tax-filings/cases" element={<TaxFilingList />} />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Calendar, TrendingUp, Calculator, Check, X } from "lucide-react";
+import { Calendar, TrendingUp, Calculator, Check, X, Clock } from "lucide-react";
 import MonthTabs from "./MonthTabs";
 import { Button } from "../../../ui";
 import { listTaxFilings, getFilingStatus } from "../../../../api/apiFunction/taxFilingServices";
@@ -74,6 +74,47 @@ const TaxFiling = () => {
       if (!submittedStatuses.has(status)) return false;
       return getFilingQuarter(filing) === period;
     });
+
+  const now = new Date();
+  const liveYear = now.getFullYear();
+  const liveQuarter = Math.floor(now.getMonth() / 3) + 1;
+
+  const isPeriodStarted = (period) => {
+    if (selectedYear < liveYear) return true;
+    if (selectedYear > liveYear) return false;
+    if (period === "annual") return false;
+    return Number(period) <= liveQuarter;
+  };
+
+  const isPeriodRunning = (period) =>
+    selectedYear === liveYear && period !== "annual" && Number(period) === liveQuarter;
+
+  const renderPeriodStatus = (period) => {
+    if (!isPeriodStarted(period)) return null;
+    if (isPeriodSubmitted(period)) {
+      return (
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15 text-green-600" title="Submitted">
+          <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+        </span>
+      );
+    }
+    if (isPeriodRunning(period)) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap"
+          title="In progress"
+        >
+          <Clock className="w-3 h-3" strokeWidth={2.5} />
+          In progress
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-500" title="Not submitted">
+        <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+      </span>
+    );
+  };
 
   useEffect(() => {
     setSearchParams({ year: selectedYear.toString(), semester: selectedSemester.toString() });
@@ -188,15 +229,7 @@ const TaxFiling = () => {
                       <div className={`text-sm font-semibold transition-colors ${selectedSemester === "annual" ? "text-fg-40" : "text-fg-60 group-hover:text-fg-40"}`}>Annual Quarter</div>
                       <div className="text-xs text-fg-60 mt-0.5">All Quarters</div>
                     </div>
-                    {isPeriodSubmitted("annual") ? (
-                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15 text-green-600" title="Submitted">
-                        <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-500" title="Not submitted">
-                        <X className="w-3.5 h-3.5" strokeWidth={2.5} />
-                      </span>
-                    )}
+                    {renderPeriodStatus("annual")}
                   </div>
                 </button>
 
@@ -219,15 +252,7 @@ const TaxFiling = () => {
                         <div className={`text-sm font-semibold transition-colors ${selectedSemester === semester.id ? "text-fg-40" : "text-fg-60 group-hover:text-fg-40"}`}>{semester.fullLabel}</div>
                         <div className="text-xs text-fg-60 mt-0.5">{semester.months}</div>
                       </div>
-                      {isPeriodSubmitted(semester.id) ? (
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15 text-green-600" title="Submitted">
-                          <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-500" title="Not submitted">
-                          <X className="w-3.5 h-3.5" strokeWidth={2.5} />
-                        </span>
-                      )}
+                      {renderPeriodStatus(semester.id)}
                     </div>
                   </button>
                 ))}

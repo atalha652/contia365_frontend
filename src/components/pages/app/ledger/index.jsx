@@ -1,5 +1,6 @@
 // This page shows real ledger data from the API in a table, similar to Vouchers
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, Filter, MoreHorizontal, Loader2, Trash2, Download, Info, FileText, X } from "lucide-react";
 // Import UI components and image preview modal for thumbnails
 // Import UI components for table rendering
@@ -29,6 +30,7 @@ const formatDateTime = (value) => {
 
 // This component fetches ledger entries and displays them in a themed table
 const Ledger = () => {
+  const navigate = useNavigate();
   // Read current user from localStorage for API calls
   const user = useMemo(() => {
     try {
@@ -549,9 +551,14 @@ const Ledger = () => {
                   const entryId = e._id || e.id;
                   
                   return (
-                    <TableRow key={entryId || index} isLast={index === filtered.length - 1}>
+                    <TableRow
+                      key={entryId || index}
+                      isLast={index === filtered.length - 1}
+                      className="cursor-pointer"
+                      onClick={() => entryId && navigate(`/app/ledger/${entryId}`, { state: { entry: e } })}
+                    >
                       {/* Checkbox */}
-                      <TableCell>
+                      <TableCell onClick={(ev) => ev.stopPropagation()}>
                         <input
                           type="checkbox"
                           className="form-checkbox h-4 w-4 rounded border-bd-50"
@@ -563,7 +570,7 @@ const Ledger = () => {
                       {/* Invoice number with info icon placed on the left */}
                       <TableCell>
                   <div className="flex items-center gap-2">
-                    <button title="Invoice details" className="text-fg-60 hover:text-fg-40" onClick={() => openPanel("invoice", e)}>
+                    <button title="Invoice details" className="text-fg-60 hover:text-fg-40" onClick={(ev) => { ev.stopPropagation(); openPanel("invoice", e); }}>
                       <Info className="w-4 h-4" />
                     </button>
                     <span className="text-sm text-fg-60 whitespace-nowrap">{e?.invoice_data?.invoice?.invoice_number || "-"}</span>
@@ -596,7 +603,7 @@ const Ledger = () => {
                 {/* Supplier name with info icon placed on the left */}
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <button title="Supplier info" className="text-fg-60 hover:text-fg-40" onClick={() => openPanel("supplier", e)}>
+                    <button title="Supplier info" className="text-fg-60 hover:text-fg-40" onClick={(ev) => { ev.stopPropagation(); openPanel("supplier", e); }}>
                       <Info className="w-4 h-4" />
                     </button>
                     <span className="text-sm font-medium text-fg-40 whitespace-nowrap">{e?.invoice_data?.supplier?.business_name || "-"}</span>
@@ -605,7 +612,7 @@ const Ledger = () => {
                 {/* Customer with info icon placed on the left */}
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <button title="Customer info" className="text-fg-60 hover:text-fg-40" onClick={() => openPanel("customer", e)}>
+                    <button title="Customer info" className="text-fg-60 hover:text-fg-40" onClick={(ev) => { ev.stopPropagation(); openPanel("customer", e); }}>
                       <Info className="w-4 h-4" />
                     </button>
                     <span className="text-sm text-fg-60 whitespace-nowrap">{e?.invoice_data?.customer?.company_name || "-"}</span>
@@ -614,7 +621,7 @@ const Ledger = () => {
                 {/* Items count with info icon placed on the left */}
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <button title="View items" className="text-fg-60 hover:text-fg-40" onClick={() => openPanel("items", e)}>
+                    <button title="View items" className="text-fg-60 hover:text-fg-40" onClick={(ev) => { ev.stopPropagation(); openPanel("items", e); }}>
                       <Info className="w-4 h-4" />
                     </button>
                     <span className="text-sm text-fg-60 whitespace-nowrap">{Array.isArray(e?.invoice_data?.items) ? e.invoice_data.items.length : 0}</span>
@@ -653,7 +660,7 @@ const Ledger = () => {
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{formatDateTime(e?.created_at)}</span>
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(ev) => ev.stopPropagation()}>
                   <div className="flex items-center">
                     <Button variant="secondary" size="icon" onClick={() => showDeleteConfirmation(e?._id || e?.id)} aria-label="Delete ledger entry">
                       <Trash2 className="w-4 h-4" />

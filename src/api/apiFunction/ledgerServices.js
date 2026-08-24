@@ -31,6 +31,25 @@ export const listUserLedgers = async ({ user_id }) => {
   }
 };
 
+// This service returns a single ledger entry, falling back to the user list
+// when the backend has no detail endpoint for a ledger id
+export const getLedgerEntry = async ({ ledger_id, user_id }) => {
+  if (!ledger_id) throw new Error("Missing ledger_id");
+  try {
+    const response = await httpGet({ url: `${LEDGERS_URL}/${ledger_id}` });
+    const data = response?.data;
+    const entry = data?.entry || data?.ledger || data;
+    if (entry && (entry._id || entry.id || entry.invoice_data)) return entry;
+  } catch (err) {
+    if (!user_id) throw err;
+  }
+  if (!user_id) throw new Error("Ledger entry not found");
+  const { entries } = await listUserLedgers({ user_id });
+  const found = entries.find((e) => String(e?._id || e?.id) === String(ledger_id));
+  if (!found) throw new Error("Ledger entry not found");
+  return found;
+};
+
 // This service updates the invoice_data for a specific ledger entry
 export const updateLedgerInvoiceData = async ({ ledger_id, invoice_data }) => {
   try {

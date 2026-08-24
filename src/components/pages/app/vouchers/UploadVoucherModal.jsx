@@ -107,7 +107,7 @@ const UploadVoucherModal = ({ open, onClose, onUploaded }) => {
   return (
     <Modal open={open} onClose={handleClose}>
       <ModalHeader
-        title="Upload Voucher"
+        title="Upload Expense"
         action={
           <Button variant="ghost" size="icon" onClick={handleClose} disabled={isSubmitting}>
             <X className="w-4 h-4" />

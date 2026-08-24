@@ -14,6 +14,9 @@ export const FILING_STATUSES = [
 export const getFilingId = (filing) =>
   filing?._id || filing?.id || filing?.filing_id || null;
 
+export const getFilingStatus = (filing) =>
+  String(filing?.status || "DRAFT").toUpperCase();
+
 export const getFilingCalculation = (filing) => {
   if (!filing || typeof filing !== "object") return null;
   const nested =
@@ -36,7 +39,10 @@ export const getFilingCalculation = (filing) => {
       transactions_count: source.transactions_count ?? filing.transactions_count,
     };
   }
-  const amountKeys = ["vat_payable", "output_vat", "input_vat", "irpf_payable", "irpf_to_pay", "net_income", "gross_income"];
+  const amountKeys = [
+    "vat_payable", "output_vat", "input_vat", "irpf_payable", "irpf_to_pay", "net_income", "gross_income",
+    "net_vat", "total_income", "total_expenses", "taxable_income", "total_base", "total_withholding",
+  ];
   if (amountKeys.some((key) => source[key] != null || filing[key] != null)) {
     return {
       ...filing,

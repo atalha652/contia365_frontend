@@ -37,12 +37,12 @@ const ModalContainer = forwardRef(({ className, size = "md", ...props }, ref) =>
 });
 ModalContainer.displayName = "ModalContainer";
 
-const Modal = ({ open, onClose, children }) => {
+const Modal = ({ open, onClose, children, size = "md" }) => {
   if (!open) return null;
   return (
     <>
       <ModalOverlay onClick={onClose} />
-      <ModalContainer>
+      <ModalContainer size={size}>
         <div className="bg-bg-60 border border-bd-50 rounded-2xl shadow-xl overflow-hidden">
           {children}
         </div>

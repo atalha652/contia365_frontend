@@ -16,6 +16,15 @@ const Header = ({ sidebarExpanded, toggleSidebar, theme, toggleTheme, title = "A
     year: "numeric",
   });
 
+  const quarter = Math.floor(currentDate.getMonth() / 3) + 1;
+  const quarterLabels = {
+    1: "Jan – Mar",
+    2: "Apr – Jun",
+    3: "Jul – Sep",
+    4: "Oct – Dec",
+  };
+  const currentQuarterLabel = `Q${quarter} ${currentDate.getFullYear()} · ${quarterLabels[quarter]}`;
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -33,6 +42,9 @@ const Header = ({ sidebarExpanded, toggleSidebar, theme, toggleTheme, title = "A
       </div>
 
       <div className="flex items-center gap-3">
+        <span className="text-sm text-fg-50 border border-bd-50 rounded-lg px-3 py-1.5 bg-bg-50">
+          {currentQuarterLabel}
+        </span>
         <span className="text-sm text-white border border-ac-01 rounded-lg px-3 py-1.5 bg-ac-01">
           {formattedDate}
         </span>

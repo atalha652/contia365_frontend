@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Upload, Search, Filter, MoreHorizontal, Loader2, History, RotateCw, FileText } from "lucide-react";
+import { Upload, Plus, Search, Filter, MoreHorizontal, Loader2, History, RotateCw, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge, Input, Select, ImagePreviewModal } from "../../../ui";
 import UploadVoucherModal from "./UploadVoucherModal";
+import ManualExpenseModal from "./ManualExpenseModal";
 import RightPanel from "../common/right-panel";
 import RejectionHistory from "../common/right-panel/RejectionHistory";
 import { listUserVouchers, sendVouchersForRequest } from "../../../../api/apiFunction/voucherServices";
@@ -14,6 +15,7 @@ const VouchersUploads = () => {
   const navigate = useNavigate();
   // Simple English: Local states for modal, table, filters, selection, and panels.
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [vouchers, setVouchers] = useState([]);
@@ -178,10 +180,25 @@ const VouchersUploads = () => {
           </div>
           {/* Header actions: Upload and Refresh placed opposite to the text, like Gmail */}
           <div className="flex items-center gap-2">
-            <Button variant="primary" className="space-x-2" onClick={() => setShowUploadModal(true)}>
-              <Upload className="w-4 h-4" strokeWidth={1.5} />
-              <span>Upload Voucher</span>
-            </Button>
+            <div className="inline-flex items-stretch rounded-xl overflow-hidden border border-bd-50">
+              <Button
+                variant="secondary"
+                className="space-x-2 rounded-none border-0 focus:ring-offset-0"
+                onClick={() => setShowManualModal(true)}
+              >
+                <Plus className="w-4 h-4" strokeWidth={1.5} />
+                <span>Add Expense</span>
+              </Button>
+              <span className="w-px bg-bd-50 self-stretch" aria-hidden="true" />
+              <Button
+                variant="secondary"
+                className="space-x-2 rounded-none border-0 focus:ring-offset-0"
+                onClick={() => setShowUploadModal(true)}
+              >
+                <Upload className="w-4 h-4" strokeWidth={1.5} />
+                <span>Upload Expense</span>
+              </Button>
+            </div>
             <Button variant="secondary" onClick={fetchVouchers}>
               <RotateCw className="w-4 h-4 mr-2" strokeWidth={1.5} />
               Refresh
@@ -399,6 +416,9 @@ const VouchersUploads = () => {
 
       {/* Upload Voucher Modal */}
       <UploadVoucherModal open={showUploadModal} onClose={() => setShowUploadModal(false)} onUploaded={() => { fetchVouchers(); }} />
+
+      {/* Manual expense entry — JSON only, no file and no OCR */}
+      <ManualExpenseModal open={showManualModal} onClose={() => setShowManualModal(false)} onCreated={() => { fetchVouchers(); }} />
 
       {/* Preview modal to view files */}
       <ImagePreviewModal open={previewOpen} onClose={() => setPreviewOpen(false)} files={previewFiles} initialIndex={previewIndex} />

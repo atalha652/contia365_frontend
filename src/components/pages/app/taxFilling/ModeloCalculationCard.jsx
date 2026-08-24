@@ -3,9 +3,7 @@
  * Renders tax engine results passed in as props (no internal fetching).
  * Priority: liveResult > savedReport > empty state
  */
-import { useState } from "react";
-import { FileText, TrendingUp, Calculator, Download, Building2, Receipt, ChevronDown } from "lucide-react";
-import { updateTaxReportStatus } from "../../../../api/apiFunction/taxCalculationServices";
+import { FileText, TrendingUp, Calculator, Download, Building2, Receipt } from "lucide-react";
 import { Button } from "../../../ui";
 
 const fmt = (val) =>
@@ -22,8 +20,6 @@ const MODELO_CONFIG = {
   "390": { color: "from-teal-500 to-emerald-600",   badge: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",           Icon: TrendingUp },
 };
 
-const REPORT_STATUSES = ["pending", "filed", "paid", "overdue"];
-
 const Row = ({ label, value, bold }) => (
   <div className={`flex items-center justify-between py-2 border-b border-bd-50 last:border-0 ${bold ? "font-semibold" : ""}`}>
     <span className={`text-sm ${bold ? "text-fg-50" : "text-fg-60"}`}>{label}</span>
@@ -31,29 +27,13 @@ const Row = ({ label, value, bold }) => (
   </div>
 );
 
-const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onReportStatusChange, onStartFiling, startingFiling }) => {
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-
+const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onStartFiling, startingFiling }) => {
   // Priority: live calculation > saved report > null
   const calculation = liveResult ?? savedReport ?? null;
   const isFromSavedReport = !liveResult && !!savedReport;
 
   const cfg = MODELO_CONFIG[modeloNo] ?? MODELO_CONFIG["303"];
   const BadgeIcon = cfg.Icon;
-
-  const handleStatusChange = async (newStatus) => {
-    const reportId = savedReport?._id || savedReport?.id;
-    if (!reportId) return;
-    setUpdatingStatus(true);
-    try {
-      await updateTaxReportStatus(reportId, newStatus);
-      onReportStatusChange?.();
-    } catch {
-      // silently fail
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
 
   // Empty state — no data yet
   if (!calculation) {
@@ -80,7 +60,28 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
     );
   }
 
-  const { totals = {} } = calculation;
+  // Live calculations expose "totals"; saved reports store the same payload as "results".
+  const totals = calculation.totals ?? calculation.results ?? {};
+
+  // The tax engine renamed several result fields; saved reports may still carry
+  // the previous names, so every metric accepts both and falls back to the root.
+  const pick = (...keys) => {
+    for (const key of keys) {
+      if (totals?.[key] != null) return totals[key];
+      if (calculation?.[key] != null) return calculation[key];
+    }
+    return undefined;
+  };
+
+  // Rates the engine never used stay at zero — drop them instead of showing €0.00 rows.
+  const vatByRateRows = Object.entries(totals.vat_by_rate ?? calculation.vat_by_rate ?? {})
+    .map(([rate, data]) => ({
+      rate,
+      outputVat: Number(data?.output_vat || 0),
+      inputVat: Number(data?.input_vat || 0),
+    }))
+    .filter(({ outputVat, inputVat }) => outputVat !== 0 || inputVat !== 0)
+    .sort((a, b) => Number(b.rate) - Number(a.rate));
 
   return (
     <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 hover:shadow-lg transition-shadow">
@@ -114,7 +115,7 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">VAT Payable</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.vat_payable)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("vat_payable", "net_vat"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
@@ -125,23 +126,31 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-bg-60 rounded-lg p-3 border border-bd-50">
               <p className="text-xs text-fg-60 mb-1">Output VAT</p>
-              <p className="text-lg font-semibold text-fg-40">{fmt(totals.output_vat)}</p>
+              <p className="text-lg font-semibold text-fg-40">{fmt(pick("output_vat", "total_output_vat"))}</p>
             </div>
             <div className="bg-bg-60 rounded-lg p-3 border border-bd-50">
               <p className="text-xs text-fg-60 mb-1">Input VAT</p>
-              <p className="text-lg font-semibold text-fg-40">{fmt(totals.input_vat)}</p>
+              <p className="text-lg font-semibold text-fg-40">{fmt(pick("input_vat", "total_input_vat"))}</p>
             </div>
           </div>
-          {totals.vat_by_rate && Object.keys(totals.vat_by_rate).length > 0 && (
+          {vatByRateRows.length > 0 && (
             <div className="pt-3 border-t border-bd-50">
               <p className="text-xs font-medium text-fg-60 mb-2">Breakdown by Rate</p>
               <div className="space-y-1">
-                {Object.entries(totals.vat_by_rate).map(([rate, data]) => {
-                  const net = (data.output_vat || 0) - (data.input_vat || 0);
+                <div className="grid grid-cols-4 gap-2 text-xs text-fg-60">
+                  <span>Rate</span>
+                  <span className="text-right">Output</span>
+                  <span className="text-right">Input</span>
+                  <span className="text-right">Net</span>
+                </div>
+                {vatByRateRows.map(({ rate, outputVat, inputVat }) => {
+                  const net = outputVat - inputVat;
                   return (
-                    <div key={rate} className="flex items-center justify-between text-sm">
+                    <div key={rate} className="grid grid-cols-4 gap-2 text-sm">
                       <span className="text-fg-60">{rate}% VAT</span>
-                      <span className={`font-medium ${net >= 0 ? "text-red-500" : "text-green-500"}`}>{fmt(Math.abs(net))}</span>
+                      <span className="text-right text-fg-40">{fmt(outputVat)}</span>
+                      <span className="text-right text-fg-40">{fmt(inputVat)}</span>
+                      <span className={`text-right font-medium ${net >= 0 ? "text-red-500" : "text-green-500"}`}>{fmt(Math.abs(net))}</span>
                     </div>
                   );
                 })}
@@ -158,19 +167,19 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">IRPF to Pay</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.irpf_to_pay)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("irpf_to_pay", "irpf_payable"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
-                <span className="text-xs font-medium">{pct(totals.irpf_rate)}</span>
+                <span className="text-xs font-medium">{pct(pick("irpf_rate"))}</span>
               </div>
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Gross Income"        value={fmt(totals.gross_income)} />
-            <Row label="Deductible Expenses" value={fmt(totals.deductible_expenses)} />
-            <Row label="Net Income"          value={fmt(totals.net_income)} bold />
-            {totals.previous_payments > 0 && <Row label="Previous Payments" value={fmt(totals.previous_payments)} />}
+            <Row label="Gross Income"        value={fmt(pick("gross_income", "total_income"))} />
+            <Row label="Deductible Expenses" value={fmt(pick("deductible_expenses", "total_expenses"))} />
+            <Row label="Net Income"          value={fmt(pick("net_income", "taxable_income"))} bold />
+            {pick("previous_payments") > 0 && <Row label="Previous Payments" value={fmt(pick("previous_payments"))} />}
           </div>
         </div>
       )}
@@ -182,17 +191,17 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">Withholding Payable</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.withholding_payable)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("withholding_payable", "total_withholding", "irpf_payable"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
-                <span className="text-xs font-medium">{pct(totals.retention_rate)}</span>
+                <span className="text-xs font-medium">{pct(pick("retention_rate"))}</span>
               </div>
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Total Rent Base" value={fmt(totals.total_rent_base)} />
-            <Row label="Retention Rate"  value={pct(totals.retention_rate)} />
+            <Row label="Total Rent Base" value={fmt(pick("total_rent_base", "total_base"))} />
+            <Row label="Retention Rate"  value={pct(pick("retention_rate"))} />
           </div>
         </div>
       )}
@@ -204,17 +213,17 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">Withholding Payable</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.withholding_payable)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("withholding_payable", "total_withholding", "irpf_payable"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
-                <span className="text-xs font-medium">{pct(totals.retention_rate)}</span>
+                <span className="text-xs font-medium">{pct(pick("retention_rate"))}</span>
               </div>
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Total Payroll Base" value={fmt(totals.total_payroll_base)} />
-            <Row label="Retention Rate"     value={pct(totals.retention_rate)} />
+            <Row label="Total Payroll Base" value={fmt(pick("total_payroll_base", "total_base"))} />
+            <Row label="Retention Rate"     value={pct(pick("retention_rate"))} />
           </div>
         </div>
       )}
@@ -226,7 +235,7 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">Total Withholding</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.total_withholding)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("total_withholding", "withholding_payable", "irpf_payable"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
@@ -235,8 +244,8 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Total Payroll Base" value={fmt(totals.total_payroll_base)} />
-            <Row label="Total Income"       value={fmt(totals.total_income)} bold />
+            <Row label="Total Payroll Base" value={fmt(pick("total_payroll_base", "total_base"))} />
+            <Row label="Total Income"       value={fmt(pick("total_income", "gross_income"))} bold />
           </div>
         </div>
       )}
@@ -248,7 +257,7 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-fg-60 mb-1">Annual VAT Payable</p>
-                <p className="text-2xl font-bold text-fg-40">{fmt(totals.annual_vat_payable)}</p>
+                <p className="text-2xl font-bold text-fg-40">{fmt(pick("annual_vat_payable", "net_vat", "vat_payable"))}</p>
               </div>
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-lg ${cfg.badge}`}>
                 <BadgeIcon className="w-4 h-4" />
@@ -257,8 +266,8 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
             </div>
           </div>
           <div className="space-y-0">
-            <Row label="Total Output VAT" value={fmt(totals.total_output_vat)} />
-            <Row label="Total Input VAT"  value={fmt(totals.total_input_vat)} />
+            <Row label="Total Output VAT" value={fmt(pick("total_output_vat", "output_vat"))} />
+            <Row label="Total Input VAT"  value={fmt(pick("total_input_vat", "input_vat"))} />
           </div>
         </div>
       )}
@@ -267,22 +276,6 @@ const ModeloCalculationCard = ({ modeloNo, title, liveResult, savedReport, onRep
       <div className="mt-4 pt-4 border-t border-bd-50 flex items-center justify-between text-xs text-fg-60">
         <span>{calculation.transactions_count ?? calculation.transaction_count ?? 0} transactions</span>
         <div className="flex items-center gap-2">
-          {/* Status updater — only when there's a saved report */}
-          {savedReport && (
-            <div className="relative">
-              <select
-                value={savedReport?.status ?? "pending"}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                disabled={updatingStatus}
-                className="appearance-none pl-2 pr-6 py-0.5 rounded bg-bg-60 border border-bd-50 text-xs text-fg-60 focus:outline-none focus:ring-1 focus:ring-ac-02 disabled:opacity-50 cursor-pointer capitalize"
-              >
-                {REPORT_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-fg-60 pointer-events-none" />
-            </div>
-          )}
           {calculation.calculated_at && (
             <span>Calculated {new Date(calculation.calculated_at).toLocaleDateString("es-ES")}</span>
           )}

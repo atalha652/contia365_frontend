@@ -321,7 +321,6 @@ const TaxCalculations = () => {
                       title={MODELO_LABELS[modeloNo] || `Modelo ${modeloNo}`}
                       liveResult={liveResult}
                       savedReport={savedReport}
-                      onReportStatusChange={loadReports}
                       onStartFiling={() => handleStartFiling(modeloNo)}
                       startingFiling={startingModelo === modeloNo}
                     />

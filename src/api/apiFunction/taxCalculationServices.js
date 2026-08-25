@@ -320,25 +320,35 @@ export const ANNUAL_MODELOS = new Set(["190", "390"]);
 /**
  * Run tax engine calculations for all relevant modelos in parallel.
  * Quarterly modelos: 303, 130, 115, 111 → { year, quarter, modelo_id? }
+ * Monthly 303 (REDEME): { year, month }
  * Annual modelos:    390, 190           → { year, modelo_id? }
  * @param {Object} params
  * @param {string[]} params.modeloNos - Modelos to calculate
  * @param {Record<string,string>} params.modeloIdMap - modelo_no → ObjectID
  * @param {number} params.year
  * @param {number|null} params.quarter - 1-4 for quarterly, null for annual view
+ * @param {number|null} [params.month] - 1-12 for monthly 303
+ * @param {Set<string>} [params.monthlyModelos] - modelos that file monthly
  * @returns {Promise<Record<string, Object|null>>} map of modeloNo → result
  */
-export const calculateAllTaxes = async ({ modeloNos, modeloIdMap, year, quarter }) => {
+export const calculateAllTaxes = async ({
+  modeloNos, modeloIdMap, year, quarter, month = null, monthlyModelos = new Set(),
+}) => {
   const results = {};
   const tasks = modeloNos.map(async (modeloNo) => {
     const isAnnual = ANNUAL_MODELOS.has(modeloNo);
-    // Skip quarterly modelos when in annual view, and annual modelos when in quarterly view
+    const isMonthly = monthlyModelos.has(String(modeloNo));
     if (isAnnual && quarter !== null) { results[modeloNo] = null; return; }
-    if (!isAnnual && quarter === null) { results[modeloNo] = null; return; }
+    if (!isAnnual && quarter === null && !isMonthly) { results[modeloNo] = null; return; }
+    if (isMonthly && month == null) { results[modeloNo] = null; return; }
 
     try {
       const payload = { year };
-      if (!isAnnual) payload.quarter = `Q${quarter}`;
+      if (isMonthly) {
+        payload.month = Number(month);
+      } else if (!isAnnual) {
+        payload.quarter = `Q${quarter}`;
+      }
       const modeloId = modeloIdMap[modeloNo];
       if (modeloId && modeloId !== modeloNo) payload.modelo_id = modeloId;
 

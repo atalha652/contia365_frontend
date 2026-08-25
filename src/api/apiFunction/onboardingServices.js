@@ -1,6 +1,26 @@
 import { ONBOARDING_URL, CENSUS_URL } from "../restEndpoint";
 import { httpGet, httpPost, httpPatch, httpPostBlob, httpGetBlob } from "../../utils/httpMethods";
 
+const USER_TYPE_ALIASES = {
+  person: "person",
+  freelancer: "person",
+  autonomo: "person",
+  "autónomo": "person",
+  individual: "person",
+  business: "business",
+  company: "business",
+  empresa: "business",
+  organization: "business",
+  advisor: "advisor",
+  asesor: "advisor",
+};
+
+export const canonicalizeUserType = (id) => {
+  if (id == null || id === "") return id;
+  const key = String(id).trim().toLowerCase();
+  return USER_TYPE_ALIASES[key] || key;
+};
+
 const unwrapCensusRecord = (payload) => {
   if (!payload || typeof payload !== "object") return null;
   if (payload.taxpayer_identity || payload.professional_registration) return payload;
@@ -21,7 +41,9 @@ export const syncOnboardingStatus = (status) => {
   const merged = {
     ...user,
     country: status.country_selected ?? user.country,
-    user_type: status.user_type_selected ?? user.user_type,
+    user_type: canonicalizeUserType(status.user_type_selected)
+      ?? canonicalizeUserType(user.user_type)
+      ?? user.user_type,
     current_step: status.current_step,
     onboarding_completed: status.onboarding_completed,
     fiscal_profile_completed: status.fiscal_profile_completed,

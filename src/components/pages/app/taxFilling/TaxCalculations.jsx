@@ -12,6 +12,15 @@ import {
 import { createTaxFiling, getFilingId } from "../../../../api/apiFunction/taxFilingServices";
 import { verifyInvoiceChain } from "../../../../api/apiFunction/invoiceServices";
 import { getMyFiscalProfile } from "../../../../api/apiFunction/onboardingServices";
+import {
+  MONTHS,
+  filingPeriodQuery,
+  isMonthly303,
+  monthName,
+  monthlyPeriodKey,
+  parseMonthParam,
+  quarterFromMonth,
+} from "../../../../utils/taxPeriod";
 import { toast } from "react-toastify";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
 import { Button } from "../../../ui";
@@ -19,8 +28,8 @@ import { Button } from "../../../ui";
 const MODELO_LABELS = {
   "115": "Modelo 115 – IRPF Rent Withholding",
   "130": "Modelo 130 – IRPF Quarterly Payment",
-  "190": "Modelo 190 – IRPF Annual Summary",
-  "111": "Modelo 111 – IRPF Withholding (Payroll)",
+  "190": "Modelo 190 – Annual Withholding Summary",
+  "111": "Modelo 111 – IRPF Withholding",
   "303": "Modelo 303 – VAT Declaration",
   "390": "Modelo 390 – VAT Annual Summary",
 };
@@ -45,6 +54,18 @@ const TaxCalculations = () => {
     if (p) return parseInt(p, 10);
     return Math.floor(new Date().getMonth() / 3) + 1;
   }, [searchParams]);
+
+  const selectedMonth = useMemo(() => {
+    const fromUrl = parseMonthParam(searchParams.get("month"));
+    if (fromUrl) return fromUrl;
+    if (selectedSemester === "annual") return null;
+    const now = new Date();
+    const current = now.getMonth() + 1;
+    if (now.getFullYear() === selectedYear && quarterFromMonth(current) === selectedSemester) {
+      return current;
+    }
+    return Number(selectedSemester) ? (Number(selectedSemester) - 1) * 3 + 1 : current;
+  }, [searchParams, selectedSemester, selectedYear]);
 
   const [ledgersLoading, setLedgersLoading] = useState(true);
   const [ledgerModeloIdMap, setLedgerModeloIdMap] = useState({});
@@ -88,6 +109,12 @@ const TaxCalculations = () => {
     return result;
   }, [ledgerModeloIdMap, fiscalProfile]);
 
+  const monthly303 = isMonthly303(fiscalProfile);
+  const monthlyModelos = useMemo(
+    () => (monthly303 ? new Set(["303"]) : new Set()),
+    [monthly303]
+  );
+
   const taxDataLoading = ledgersLoading || profileLoading;
 
   const [savedReports, setSavedReports] = useState([]);
@@ -98,12 +125,21 @@ const TaxCalculations = () => {
 
   useEffect(() => { loadReports(); }, [loadReports, selectedYear]);
 
-  const getSavedReport = useCallback((modeloNo, quarter) => {
+  const getSavedReport = useCallback((modeloNo, quarter, month = null) => {
     return savedReports.find((r) => {
       const matchModelo = String(r?.modelo ?? r?.modelo_no ?? "") === String(modeloNo);
       const matchYear = Number(r?.year) === selectedYear;
-      if (quarter === null) return matchModelo && matchYear;
-      return matchModelo && matchYear && (String(r?.quarter) === `Q${quarter}` || Number(r?.quarter) === quarter);
+      if (!matchModelo || !matchYear) return false;
+      if (month != null) {
+        const padded = String(month).padStart(2, "0");
+        return (
+          Number(r?.month) === Number(month)
+          || String(r?.period_key || "") === monthlyPeriodKey(selectedYear, month)
+          || String(r?.quarter) === `M${padded}`
+        );
+      }
+      if (quarter === null) return true;
+      return String(r?.quarter) === `Q${quarter}` || Number(r?.quarter) === quarter;
     }) ?? null;
   }, [savedReports, selectedYear]);
 
@@ -116,7 +152,9 @@ const TaxCalculations = () => {
 
   const cacheKey = selectedSemester === "annual"
     ? `${selectedYear}:annual`
-    : `${selectedYear}:${selectedSemester}`;
+    : monthly303
+      ? `${selectedYear}:m${selectedMonth}`
+      : `${selectedYear}:${selectedSemester}`;
 
   useEffect(() => {
     setCalcResults(calcCache.current[cacheKey] ?? null);
@@ -140,6 +178,8 @@ const TaxCalculations = () => {
         modeloIdMap: idMap,
         year: selectedYear,
         quarter: quarterParam,
+        month: monthly303 ? selectedMonth : null,
+        monthlyModelos,
       });
       calcCache.current[cacheKey] = results;
       setCalcResults(results);
@@ -164,16 +204,24 @@ const TaxCalculations = () => {
     );
   }, [modeloNos, selectedSemester]);
 
-  const calendarQuery = `?year=${selectedYear}&semester=${selectedSemester}`;
+  const calendarQuery = filingPeriodQuery({
+    year: selectedYear,
+    semester: selectedSemester,
+    month: monthly303 ? selectedMonth : searchParams.get("month"),
+  });
 
   const handleStartFiling = async (modeloNo) => {
     try {
       setStartingModelo(modeloNo);
       const annual = ANNUAL_MODELOS.has(String(modeloNo));
+      const monthly = monthlyModelos.has(String(modeloNo));
       const filing = await createTaxFiling({
         modelo: String(modeloNo),
         year: selectedYear,
-        quarter: annual || selectedSemester === "annual" ? undefined : `Q${selectedSemester}`,
+        month: monthly ? selectedMonth : undefined,
+        quarter: annual || monthly || selectedSemester === "annual"
+          ? undefined
+          : `Q${selectedSemester}`,
       });
       const id = getFilingId(filing);
       toast.success(`Draft filing created for modelo ${modeloNo}`);
@@ -200,7 +248,9 @@ const TaxCalculations = () => {
                   <h1 className="text-2xl font-bold text-fg-40 tracking-tight">Tax Filing & Compliance</h1>
                   <p className="text-sm text-fg-60 mt-1 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Quarterly tax filings and compliance management
+                    {monthly303
+                      ? "Monthly IVA (REDEME) and periodic tax filings"
+                      : "Quarterly tax filings and compliance management"}
                   </p>
                 </div>
               </div>
@@ -227,7 +277,9 @@ const TaxCalculations = () => {
                 <p className="text-sm text-fg-60 mt-1">
                   {selectedSemester === "annual"
                     ? `Annual summaries for ${selectedYear}`
-                    : `Automated calculations for Q${selectedSemester} ${selectedYear}`}
+                    : monthly303
+                      ? `Automated calculations for ${monthName(selectedMonth)} ${selectedYear}`
+                      : `Automated calculations for Q${selectedSemester} ${selectedYear}`}
                 </p>
                 {fiscalProfile && (
                   <p className="text-xs text-fg-60 mt-1">
@@ -256,6 +308,31 @@ const TaxCalculations = () => {
                 </Button>
               </div>
             </div>
+
+            {monthly303 && selectedSemester !== "annual" && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {MONTHS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams(searchParams);
+                      params.set("year", String(selectedYear));
+                      params.set("semester", String(quarterFromMonth(item.id)));
+                      params.set("month", String(item.id));
+                      navigate(`/app/tax-filings/calculate?${params.toString()}`);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      selectedMonth === item.id
+                        ? "border-ac-02 bg-ac-02/10 text-fg-40"
+                        : "border-bd-50 bg-bg-50 text-fg-60 hover:border-ac-02/50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {!profileLoading && !fiscalProfile && (
               <div className="bg-bg-50 border border-bd-50 rounded-xl p-6 text-sm text-fg-60">
@@ -313,14 +390,23 @@ const TaxCalculations = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {visibleModelos.map((modeloNo) => {
                   const liveResult = calcResults?.[modeloNo] ?? null;
-                  const savedReport = getSavedReport(modeloNo, quarterParam);
+                  const savedReport = getSavedReport(
+                    modeloNo,
+                    quarterParam,
+                    monthlyModelos.has(String(modeloNo)) ? selectedMonth : null
+                  );
                   return (
                     <ModeloCalculationCard
                       key={modeloNo}
                       modeloNo={modeloNo}
-                      title={MODELO_LABELS[modeloNo] || `Modelo ${modeloNo}`}
+                      title={
+                        modeloNo === "303" && monthly303
+                          ? "Modelo 303 – Monthly VAT (REDEME)"
+                          : MODELO_LABELS[modeloNo] || `Modelo ${modeloNo}`
+                      }
                       liveResult={liveResult}
                       savedReport={savedReport}
+                      nif={fiscalProfile?.taxpayer_identity?.nif_nie}
                       onStartFiling={() => handleStartFiling(modeloNo)}
                       startingFiling={startingModelo === modeloNo}
                     />

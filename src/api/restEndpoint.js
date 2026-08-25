@@ -55,6 +55,10 @@ export const TAX_ENGINE_URL = `${SERVER_PATH}/api/tax-engine`;
 
 export const TAX_FILINGS_URL = `${SERVER_PATH}/api/tax-filings`;
 
+export const TAX_PERCIPIENTS_URL = `${SERVER_PATH}/api/tax-percipients`;
+
+export const WAITLIST_URL = `${SERVER_PATH}/api/waitlist`;
+
 // Invoice End Points
 // Base URL for invoice lifecycle (create, issue, cancel, view)
 export const INVOICE_URL = `${SERVER_PATH}/api/invoices`;

@@ -11,6 +11,13 @@ import {
   listTaxFilings,
 } from "../../../../api/apiFunction/taxFilingServices";
 import { ANNUAL_MODELOS } from "../../../../api/apiFunction/taxCalculationServices";
+import { getMyFiscalProfile } from "../../../../api/apiFunction/onboardingServices";
+import {
+  filingPeriodQuery,
+  formatFilingPeriod,
+  isMonthlyModelo,
+  parseMonthParam,
+} from "../../../../utils/taxPeriod";
 
 const STATUS_VARIANT = {
   DRAFT: "secondary",
@@ -27,16 +34,23 @@ const TaxFilingList = () => {
   const [searchParams] = useSearchParams();
   const year = Number(searchParams.get("year")) || new Date().getFullYear();
   const semester = searchParams.get("semester") || "";
+  const monthFromUrl = parseMonthParam(searchParams.get("month"));
 
   const [filings, setFilings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [creating, setCreating] = useState(false);
   const [modelo, setModelo] = useState("303");
+  const [fiscalProfile, setFiscalProfile] = useState(null);
 
-  const calendarQuery = `?year=${year}${semester ? `&semester=${semester}` : ""}`;
+  const calendarQuery = filingPeriodQuery({
+    year,
+    semester: semester || undefined,
+    month: monthFromUrl || undefined,
+  });
   const isAnnual = semester === "annual";
   const quarter = isAnnual ? null : semester ? `Q${semester}` : `Q${Math.floor(new Date().getMonth() / 3) + 1}`;
+  const selectedMonth = monthFromUrl || (isAnnual ? null : new Date().getMonth() + 1);
 
   const loadFilings = async () => {
     try {
@@ -59,14 +73,26 @@ const TaxFilingList = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, statusFilter]);
 
+  useEffect(() => {
+    getMyFiscalProfile()
+      .then(setFiscalProfile)
+      .catch(() => setFiscalProfile(null));
+  }, []);
+
   const handleCreate = async () => {
     try {
       setCreating(true);
       const annual = ANNUAL_MODELOS.has(String(modelo));
+      const monthly = isMonthlyModelo(fiscalProfile, modelo);
+      if (monthly && !selectedMonth) {
+        toast.error("Pick a month to create a monthly 303 filing.");
+        return;
+      }
       const filing = await createTaxFiling({
         modelo,
         year,
-        quarter: annual ? undefined : quarter,
+        month: monthly ? selectedMonth : undefined,
+        quarter: annual || monthly ? undefined : quarter,
       });
       const id = getFilingId(filing);
       toast.success(`Draft filing created for modelo ${modelo}`);
@@ -149,7 +175,7 @@ const TaxFilingList = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-fg-40">
-                          Modelo {filing.modelo} · {filing.quarter || "Annual"} {filing.year}
+                          Modelo {filing.modelo} · {formatFilingPeriod(filing)}
                         </p>
                         <p className="text-xs text-fg-60 truncate">
                           {filing.reviewer || filing.approver

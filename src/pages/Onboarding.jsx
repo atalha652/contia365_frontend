@@ -15,7 +15,9 @@ import {
   syncOnboardingStatus,
   saveCensusProfile,
   updateCensusProfile,
+  canonicalizeUserType,
 } from "../api/apiFunction/onboardingServices";
+import { getMyWaitlist, joinWaitlist } from "../api/apiFunction/waitlistServices";
 
 const COUNTRIES = [
   {
@@ -29,22 +31,20 @@ const COUNTRIES = [
     code: "IT",
     flag: "🇮🇹",
     name: "Italy",
-    status: "Available",
-    description: "Continue with Italian account setup. A Spain fiscal profile is not required.",
+    status: "Coming soon",
+    description: "Italian tax is not live yet. Join the waitlist and we will contact you.",
   },
 ];
 
-// The API still returns freelancer/company/advisor. Keep those ids for every
-// request and only remap what the user reads.
 const WHITE_LABEL_ID = "white_label";
 
 const USER_TYPE_DISPLAY = {
-  freelancer: {
+  person: {
     name: "Person",
     subtitle: "Autónomo",
     description: "Individual professional managing their own invoices and taxes.",
   },
-  company: {
+  business: {
     name: "Business",
     subtitle: "Empresa",
     description: "Company with employees, accounting, and invoicing needs.",
@@ -56,8 +56,8 @@ const USER_TYPE_DISPLAY = {
   },
 };
 
-// Advisor is still returned by the API and kept for existing accounts, but the
-// client onboarding offers Person, Business, and White Label only.
+// Advisor is kept for existing accounts, but onboarding offers Person, Business,
+// and White Label only. White Label is waitlist interest, not a stored type.
 const HIDDEN_TYPE_IDS = ["advisor"];
 
 const WHITE_LABEL_CARD = {
@@ -69,13 +69,13 @@ const WHITE_LABEL_CARD = {
 };
 
 const TYPE_ICONS = {
-  freelancer: (
+  person: (
     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
         d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
   ),
-  company: (
+  business: (
     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
         d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -148,6 +148,8 @@ const Onboarding = () => {
   const [typesLoading, setTypesLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [whiteLabelInterest, setWhiteLabelInterest] = useState(false);
+  const [italyWaitlist, setItalyWaitlist] = useState(false);
+  const [joinedInterests, setJoinedInterests] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAEATModal, setShowAEATModal] = useState(false);
   const [aeatStep, setAeatStep] = useState(1);
@@ -216,8 +218,11 @@ const Onboarding = () => {
   const displayTypes = useMemo(
     () => [
       ...userTypes
-        .filter((type) => !HIDDEN_TYPE_IDS.includes(type.id))
-        .map((type) => ({ ...type, ...(USER_TYPE_DISPLAY[type.id] || {}), id: type.id })),
+        .map((type) => {
+          const id = canonicalizeUserType(type.id) || type.id;
+          return { ...type, ...(USER_TYPE_DISPLAY[id] || {}), id };
+        })
+        .filter((type) => !HIDDEN_TYPE_IDS.includes(type.id)),
       WHITE_LABEL_CARD,
     ],
     [userTypes]
@@ -249,20 +254,25 @@ const Onboarding = () => {
     syncOnboardingStatus(status);
     setOnboardingStatus(status);
     setSelectedCountry(status.country_selected?.toUpperCase() || null);
-    setSelected(status.user_type_selected || null);
+    setSelected(canonicalizeUserType(status.user_type_selected) || null);
     return status;
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     setStatusLoading(true);
-    getOnboardingStatus()
-      .then((status) => {
-        if (cancelled || !status) return;
+    Promise.all([getOnboardingStatus(), getMyWaitlist()])
+      .then(([status, rows]) => {
+        if (cancelled) return;
+        const interests = (rows || [])
+          .map((row) => String(row?.interest || "").toLowerCase())
+          .filter(Boolean);
+        setJoinedInterests(interests);
+        if (!status) return;
         syncOnboardingStatus(status);
         setOnboardingStatus(status);
         setSelectedCountry(status.country_selected?.toUpperCase() || null);
-        setSelected(status.user_type_selected || null);
+        setSelected(canonicalizeUserType(status.user_type_selected) || null);
       })
       .finally(() => {
         if (!cancelled) setStatusLoading(false);
@@ -296,6 +306,22 @@ const Onboarding = () => {
     if (!selectedCountry) return;
     setCountryLoading(true);
     try {
+      if (selectedCountry === "IT") {
+        const response = await joinWaitlist({ interest: "italy", source: "onboarding" });
+        if (response?.status === 200 || response?.status === 201) {
+          setJoinedInterests((prev) => (
+            prev.includes("italy") ? prev : [...prev, "italy"]
+          ));
+          setItalyWaitlist(true);
+          toast.success("You are on the Italy waitlist.");
+        } else {
+          const detail = response?.data?.detail;
+          toast.error(
+            (typeof detail === "string" && detail) || "Could not join the Italy waitlist."
+          );
+        }
+        return;
+      }
       const response = await selectCountry(selectedCountry);
       if (response?.status === 200) {
         toast.success(response.data?.message || "Country selected successfully.");
@@ -326,13 +352,35 @@ const Onboarding = () => {
     // White Label has no backend user type yet, so it never reaches the API
     // or the Spanish census flow.
     if (selected === WHITE_LABEL_ID) {
-      setWhiteLabelInterest(true);
+      setIsLoading(true);
+      try {
+        const response = await joinWaitlist({
+          interest: "white_label",
+          source: "onboarding",
+        });
+        if (response?.status === 200 || response?.status === 201) {
+          setJoinedInterests((prev) => (
+            prev.includes("white_label") ? prev : [...prev, "white_label"]
+          ));
+          setWhiteLabelInterest(true);
+          toast.success("You are on the White Label waitlist.");
+        } else {
+          const detail = response?.data?.detail;
+          toast.error(
+            (typeof detail === "string" && detail) || "Could not join the waitlist."
+          );
+        }
+      } catch {
+        toast.error("Network error. Please check your connection and try again.");
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await selectUserType(selected);
+      const response = await selectUserType(canonicalizeUserType(selected) || selected);
       if (response?.status === 200) {
         toast.success(response.data?.message || "Account type selected successfully.");
         await refreshOnboardingStatus();
@@ -718,6 +766,41 @@ const Onboarding = () => {
     );
   }
 
+  if (italyWaitlist) {
+    let email = "";
+    try {
+      email = JSON.parse(localStorage.getItem("user") || "{}")?.email || "";
+    } catch {
+      email = "";
+    }
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
+          <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
+            Coming soon
+          </span>
+          <h1 className="mt-4 text-3xl font-bold text-slate-800">Italy waitlist</h1>
+          <p className="mt-3 text-slate-500">
+            Italian tax is not available yet. Your interest is saved and sales can see it.
+            Spanish modelos including 303 stay blocked for Italy.
+          </p>
+          {email && (
+            <p className="mt-4 text-sm text-slate-600">
+              We will send updates to <span className="font-semibold text-slate-800">{email}</span>.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => { setItalyWaitlist(false); setSelectedCountry(null); }}
+            className="mt-7 px-6 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Choose Spain instead
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (onboardingStatus?.current_step === "country_selection") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -779,7 +862,11 @@ const Onboarding = () => {
               disabled={!selectedCountry || countryLoading}
               className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
             >
-              {countryLoading ? "Saving..." : "Continue"}
+              {countryLoading
+                ? "Saving..."
+                : selectedCountry === "IT"
+                  ? (joinedInterests.includes("italy") ? "On the waitlist" : "Join waitlist")
+                  : "Continue"}
             </button>
           </div>
         </div>
@@ -806,8 +893,8 @@ const Onboarding = () => {
           </span>
           <h1 className="mt-4 text-3xl font-bold text-slate-800">White Label</h1>
           <p className="mt-3 text-slate-500">
-            Partner accounts are not open yet. We have noted your interest and will contact you
-            before launch.
+            Partner accounts are not open yet. Your interest is saved and sales can see it.
+            We will contact you before launch.
           </p>
           {email && (
             <p className="mt-4 text-sm text-slate-600">
@@ -893,9 +980,9 @@ const Onboarding = () => {
             className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
           >
             {isLoading
-              ? "Setting up..."
+              ? "Saving..."
               : selected === WHITE_LABEL_ID
-                ? "Join waitlist"
+                ? (joinedInterests.includes("white_label") ? "On the waitlist" : "Join waitlist")
                 : "Continue"}
           </button>
         </div>

@@ -50,8 +50,10 @@ export const getTaxDashboardDeadline = async ({ year } = {}) => {
   }
 };
 
-export const completeTaxObligation = async ({ modelo, year, quarter }) => {
+export const completeTaxObligation = async ({ modelo, year, quarter, month, period_key }) => {
   const payload = { modelo, year };
+  if (period_key) payload.period_key = period_key;
+  if (month) payload.month = Number(month);
   if (quarter) payload.quarter = quarter;
   const response = await httpPost({
     url: `${TAX_DASHBOARD_URL}/obligations/complete`,

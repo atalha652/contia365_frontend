@@ -14,8 +14,11 @@ import MonthTabs from "./taxFilling/MonthTabs";
 import VATSummaryWidget from "./dashboard/VATSummaryWidget";
 import IRPFSummaryWidget from "./dashboard/IRPFSummaryWidget";
 import ChainIntegrityWidget from "./dashboard/ChainIntegrityWidget";
+import { parseMonthParam, quarterFromMonth } from "../../../utils/taxPeriod";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { currentYear, currentQuarterId, currentMonthStart, currentMonthEnd, currentQuarterStart, currentQuarterEnd } = useMemo(() => {
     const now = new Date();
     const monthIndex = now.getMonth(); // 0-11
@@ -118,16 +121,22 @@ const Dashboard = () => {
   }, [taxDeadline]);
 
   const handleCompleteObligation = async (obligation) => {
-    const key = `${obligation.modelo}-${obligation.year}-${obligation.quarter || "annual"}`;
-    const isAnnual = ["ANUAL", "ANNUAL"].includes(
-      String(obligation.periodicity || "").toUpperCase()
-    );
+    const periodKey = obligation.period_key
+      || obligation.quarter
+      || "annual";
+    const key = `${obligation.modelo}-${obligation.year}-${periodKey}`;
+    const periodicity = String(obligation.periodicity || "").toUpperCase();
+    const isAnnual = ["ANUAL", "ANNUAL"].includes(periodicity);
+    const isMonthly = periodicity === "MENSUAL";
+    const month = Number(obligation.month) || parseMonthParam(obligation.period_key);
     try {
       setCompletingObligation(key);
       await completeTaxObligation({
         modelo: obligation.modelo,
         year: obligation.year,
-        quarter: isAnnual ? undefined : obligation.quarter || undefined,
+        quarter: isAnnual || isMonthly ? undefined : obligation.quarter || undefined,
+        month: isMonthly ? month : undefined,
+        period_key: obligation.period_key || undefined,
       });
       const refreshed = await getTaxDashboardDeadline({ year: fiscalYear });
       setTaxDeadline(refreshed);
@@ -137,6 +146,22 @@ const Dashboard = () => {
     } finally {
       setCompletingObligation(null);
     }
+  };
+
+  const openObligationFiling = (obligation) => {
+    const periodicity = String(obligation.periodicity || "").toUpperCase();
+    const month = Number(obligation.month) || parseMonthParam(obligation.period_key);
+    const semester = obligation.quarter
+      ? String(obligation.quarter).replace(/^Q/i, "")
+      : month
+        ? String(quarterFromMonth(month))
+        : "annual";
+    const params = new URLSearchParams({
+      year: String(obligation.year || fiscalYear),
+      semester: periodicity === "ANUAL" || periodicity === "ANNUAL" ? "annual" : semester,
+    });
+    if (month) params.set("month", String(month));
+    navigate(`/app/tax-filings/calculate?${params.toString()}`);
   };
 
   // Derived numbers for cards using backend response
@@ -426,7 +451,7 @@ const Dashboard = () => {
                             ? new Date(...obligation.deadline_date.split("-").map(Number).map((value, index) => index === 1 ? value - 1 : value))
                                 .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
                             : "-";
-                          const obligationKey = `${obligation.modelo}-${obligation.year}-${obligation.quarter || "annual"}`;
+                          const obligationKey = `${obligation.modelo}-${obligation.year}-${obligation.period_key || obligation.quarter || "annual"}`;
                           return (
                             <div key={obligationKey} className="bg-bg-60 border border-bd-50 rounded-lg p-4 flex items-center justify-between gap-4">
                               <div className="flex items-center gap-3 min-w-0">
@@ -445,6 +470,14 @@ const Dashboard = () => {
                                   {config.label}
                                 </span>
                                 {status !== "completed" && (
+                                  <>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => openObligationFiling(obligation)}
+                                  >
+                                    File
+                                  </Button>
                                   <Button
                                     variant="secondary"
                                     size="sm"
@@ -456,6 +489,7 @@ const Dashboard = () => {
                                       : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
                                     Mark completed
                                   </Button>
+                                  </>
                                 )}
                               </div>
                             </div>

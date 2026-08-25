@@ -1,5 +1,5 @@
 import { TAX_FILINGS_URL } from "../restEndpoint";
-import { httpGet, httpPost } from "../../utils/httpMethods";
+import { httpGet, httpGetBlob, httpPost } from "../../utils/httpMethods";
 
 export const FILING_STATUSES = [
   "DRAFT",
@@ -10,6 +10,19 @@ export const FILING_STATUSES = [
   "ACCEPTED",
   "REJECTED",
 ];
+
+export const LIVE_MODELOS = new Set(["111", "115", "130", "190", "303", "390"]);
+export const PERCIPIENT_MODELOS = new Set(["111", "190"]);
+
+export const canLiveSubmitFiling = (filing) => {
+  if (typeof filing?.can_live_submit === "boolean") return filing.can_live_submit;
+  return LIVE_MODELOS.has(String(filing?.modelo || ""));
+};
+
+export const filingNeedsPercipients = (filing) => {
+  if (typeof filing?.needs_percipients === "boolean") return filing.needs_percipients;
+  return PERCIPIENT_MODELOS.has(String(filing?.modelo || ""));
+};
 
 export const getFilingId = (filing) =>
   filing?._id || filing?.id || filing?.filing_id || null;
@@ -35,6 +48,8 @@ export const getFilingCalculation = (filing) => {
       modelo: source.modelo || filing.modelo,
       year: source.year || filing.year,
       quarter: source.quarter || filing.quarter,
+      month: source.month || filing.month,
+      period_key: source.period_key || filing.period_key,
       calculated_at: source.calculated_at || filing.calculated_at,
       transactions_count: source.transactions_count ?? filing.transactions_count,
     };
@@ -42,6 +57,7 @@ export const getFilingCalculation = (filing) => {
   const amountKeys = [
     "vat_payable", "output_vat", "input_vat", "irpf_payable", "irpf_to_pay", "net_income", "gross_income",
     "net_vat", "total_income", "total_expenses", "taxable_income", "total_base", "total_withholding",
+    "total_withheld", "withholding_payable", "percipient_count",
   ];
   if (amountKeys.some((key) => source[key] != null || filing[key] != null)) {
     return {
@@ -51,6 +67,8 @@ export const getFilingCalculation = (filing) => {
       modelo: filing.modelo,
       year: filing.year,
       quarter: filing.quarter,
+      month: filing.month,
+      period_key: filing.period_key,
     };
   }
   return null;
@@ -77,9 +95,11 @@ const unwrapFilingList = (payload) => {
   return [];
 };
 
-export const createTaxFiling = async ({ modelo, year, quarter }) => {
+export const createTaxFiling = async ({ modelo, year, quarter, month, period_key }) => {
   const payload = { modelo, year };
-  if (quarter) payload.quarter = quarter;
+  if (month) payload.month = Number(month);
+  else if (period_key) payload.period_key = period_key;
+  else if (quarter) payload.quarter = quarter;
   const response = await httpPost({ url: `${TAX_FILINGS_URL}/`, payload });
   return unwrapFiling(response?.data);
 };
@@ -125,9 +145,33 @@ export const approveTaxFiling = async (filingId, { comment } = {}) => {
   return unwrapFiling(response?.data);
 };
 
-export const submitTaxFiling = async (filingId, { comment, test_mode = true } = {}) => {
-  const payload = { test_mode };
+export const formatTaxFilingError = (err, fallback = "Action failed") => {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    return (
+      detail.description ||
+      detail.detail ||
+      (typeof detail.error === "string" ? detail.error : null) ||
+      fallback
+    );
+  }
+  return err?.message || fallback;
+};
+
+export const submitTaxFiling = async (
+  filingId,
+  { comment, test_mode = true, cert_password } = {}
+) => {
+  const payload = { test_mode: Boolean(test_mode) };
   if (comment) payload.comment = comment;
+  if (!payload.test_mode) {
+    const password = String(cert_password || "").trim();
+    if (!password) {
+      throw new Error("cert_password is required for live AEAT submission.");
+    }
+    payload.cert_password = password;
+  }
   const response = await httpPost({
     url: `${TAX_FILINGS_URL}/${filingId}/submit`,
     payload,
@@ -141,4 +185,32 @@ export const recordTaxFilingResult = async (filingId, payload) => {
     payload,
   });
   return unwrapFiling(response?.data);
+};
+
+const filenameFromDisposition = (header, fallback) => {
+  const match = String(header || "").match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+  if (!match) return fallback;
+  try {
+    return decodeURIComponent(match[1].replace(/"/g, "").trim());
+  } catch {
+    return match[1].replace(/"/g, "").trim() || fallback;
+  }
+};
+
+export const downloadTaxFilingJustificante = async (filingId, fallbackName) => {
+  const response = await httpGetBlob({
+    url: `${TAX_FILINGS_URL}/${filingId}/justificante`,
+  });
+  const blob = new Blob([response.data], { type: "application/pdf" });
+  const filename = filenameFromDisposition(
+    response.headers?.["content-disposition"],
+    fallbackName || `justificante-${filingId}.pdf`
+  );
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+  return filename;
 };

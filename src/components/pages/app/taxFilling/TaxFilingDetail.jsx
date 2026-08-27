@@ -129,6 +129,7 @@ const TaxFilingDetail = () => {
   );
   const liveReady = !needsPercipients || legallyComplete;
   const liveSubmit = action === "submit" && canLiveSubmit;
+  const envCertPassword = Boolean(filing?.cert_password_from_env);
   const aeatResult = filing?.aeat_result && typeof filing.aeat_result === "object"
     ? filing.aeat_result
     : null;
@@ -165,7 +166,7 @@ const TaxFilingDetail = () => {
           toast.error("Add percipient records and recalculate before live submit.");
           return;
         }
-        if (!certPassword.trim()) {
+        if (!certPassword.trim() && !envCertPassword) {
           toast.error("Certificate password is required");
           return;
         }
@@ -283,7 +284,7 @@ const TaxFilingDetail = () => {
                 <p className="text-xs text-fg-60 mt-0.5">
                   {status === "REJECTED"
                     ? "AEAT rejected this filing. Review the error, then calculate again."
-                    : "AEAT accepted this filing."}
+                    : "AEAT accepted this filing. Accepted is not paid — payment (NRC) is out of scope."}
                 </p>
               </div>
               <Button
@@ -322,6 +323,11 @@ const TaxFilingDetail = () => {
             {!canDownloadJustificante && (
               <p className="text-xs text-fg-60 mt-3">No justificante number or CSV was returned, so download is unavailable.</p>
             )}
+            {canDownloadJustificante && (
+              <p className="text-xs text-fg-60 mt-3">
+                This justificante is a Contia PDF built from stored AEAT fields (code, message, CSV). It is not an official AEAT download.
+              </p>
+            )}
           </div>
         )}
 
@@ -348,6 +354,7 @@ const TaxFilingDetail = () => {
             liveResult={calculation}
             nif={nif}
             filingStatus={status}
+            showDraftPdfButton
           />
         </div>
 
@@ -440,18 +447,23 @@ const TaxFilingDetail = () => {
               </p>
               <div>
                 <label className="block text-xs font-medium text-fg-60 mb-1.5">
-                  Certificate password <span className="text-red-400">*</span>
+                  Certificate password
+                  {!envCertPassword && <span className="text-red-400"> *</span>}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={certPassword}
                     onChange={(e) => setCertPassword(e.target.value)}
-                    placeholder="Enter your .p12 password"
+                    placeholder={
+                      envCertPassword
+                        ? "Leave blank to use CERT_PASSWORD from the server .env"
+                        : "Enter your .p12 password"
+                    }
                     autoComplete="off"
                     className="w-full px-3 py-2.5 pr-10 text-sm bg-bg-60 border border-bd-50 rounded-lg text-fg-40 placeholder:text-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && certPassword.trim() && !busy) runAction();
+                      if (e.key === "Enter" && (certPassword.trim() || envCertPassword) && !busy) runAction();
                     }}
                   />
                   <button
@@ -463,7 +475,12 @@ const TaxFilingDetail = () => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-fg-60 mt-1">Used in-memory only — never stored.</p>
+                <p className="text-xs text-fg-60 mt-1">
+                  Used in-memory only — never stored.
+                  {envCertPassword
+                    ? " The enrolled cert password is set in the server .env (CERT_PASSWORD). Typing here overrides it."
+                    : ""}
+                </p>
               </div>
               <textarea
                 value={comment}
@@ -493,7 +510,7 @@ const TaxFilingDetail = () => {
           <Button
             variant="primary"
             onClick={runAction}
-            disabled={busy || (liveSubmit && !certPassword.trim())}
+            disabled={busy || (liveSubmit && !certPassword.trim() && !envCertPassword)}
           >
             {busy ? "Saving…" : liveSubmit ? "Confirm & submit" : "Confirm"}
           </Button>

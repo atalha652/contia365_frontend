@@ -205,6 +205,7 @@ const AppPage = () => {
     else if (path.includes("/app/payroll")) label = "Payroll";
     else if (path.includes("/app/invoices")) label = "Invoices";
     else if (path.includes("/app/compliance")) label = "Chain Integrity";
+    else if (path.includes("/app/waitlist")) label = "Sales waitlist";
     else if (path.includes("/app/settings/compliance")) label = "Certificate Settings";
     setHeaderTitle(label);
     updatePageTitle(label);

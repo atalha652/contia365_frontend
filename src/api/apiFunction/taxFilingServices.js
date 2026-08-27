@@ -145,7 +145,38 @@ export const approveTaxFiling = async (filingId, { comment } = {}) => {
   return unwrapFiling(response?.data);
 };
 
+const conflictPayload = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const nested =
+    value.detail && typeof value.detail === "object" && !Array.isArray(value.detail)
+      ? value.detail
+      : value;
+  const filingId = nested.filing_id || nested.existing_filing_id || nested.id || null;
+  const isConflict =
+    nested.error === "FILING_EXISTS" ||
+    (typeof nested.detail === "string" && /already exists/i.test(nested.detail));
+  if (!isConflict && !filingId) return null;
+  const message =
+    (typeof nested.detail === "string" && nested.detail) ||
+    nested.message ||
+    "This period already exists.";
+  return {
+    filingId: filingId ? String(filingId) : null,
+    message,
+    reference: nested.reference || null,
+    status: nested.status || null,
+    modelo: nested.modelo || null,
+    year: nested.year || null,
+    periodKey: nested.period_key || null,
+  };
+};
+
+export const getFilingConflict = (err) =>
+  conflictPayload(err?.response?.data?.detail) || conflictPayload(err?.response?.data);
+
 export const formatTaxFilingError = (err, fallback = "Action failed") => {
+  const conflict = getFilingConflict(err);
+  if (conflict?.message) return conflict.message;
   const detail = err?.response?.data?.detail;
   if (typeof detail === "string" && detail.trim()) return detail;
   if (detail && typeof detail === "object") {
@@ -167,10 +198,7 @@ export const submitTaxFiling = async (
   if (comment) payload.comment = comment;
   if (!payload.test_mode) {
     const password = String(cert_password || "").trim();
-    if (!password) {
-      throw new Error("cert_password is required for live AEAT submission.");
-    }
-    payload.cert_password = password;
+    if (password) payload.cert_password = password;
   }
   const response = await httpPost({
     url: `${TAX_FILINGS_URL}/${filingId}/submit`,

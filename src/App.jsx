@@ -37,6 +37,7 @@ import TaxFiling from "./components/pages/app/taxFilling";
 import TaxCalculations from "./components/pages/app/taxFilling/TaxCalculations";
 import TaxFilingList from "./components/pages/app/taxFilling/TaxFilingList";
 import TaxFilingDetail from "./components/pages/app/taxFilling/TaxFilingDetail";
+import SalesWaitlist from "./components/pages/app/SalesWaitlist";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 import InvoiceList from "./components/pages/app/invoices/InvoiceList";
 import InvoiceEditor from "./components/pages/app/invoices/InvoiceEditor";
@@ -125,6 +126,7 @@ function App() {
               <Route path="tax-filings/calculate" element={<TaxCalculations />} />
               <Route path="tax-filings/cases" element={<TaxFilingList />} />
               <Route path="tax-filings/cases/:filingId" element={<TaxFilingDetail />} />
+              <Route path="waitlist" element={<SalesWaitlist />} />
               <Route path="bank-transactions" element={<BankTransactions />} />
               <Route path="bank-transactions/:accountId" element={<BankTransactionDetails />} />
               {/* Invoice lifecycle routes */}

@@ -74,11 +74,19 @@ const IRPFSummaryWidget = ({ startDate, endDate, quarter, userId, title = "IRPF 
     return null;
   }
 
-  const irpfToPay = Number(summary.irpf_to_pay || 0);
-  const grossIncome = Number(summary.gross_income || 0);
-  const deductibleExpenses = Number(summary.deductible_expenses || 0);
-  const netIncome = Number(summary.net_income || 0);
-  const irpfRate = Number(summary.irpf_rate || 20);
+  const num = (...keys) => {
+    for (const key of keys) {
+      const value = summary[key];
+      if (value != null && value !== "") return Number(value);
+    }
+    return 0;
+  };
+  const irpfToPay = num("irpf_payable", "irpf_to_pay");
+  const grossIncome = num("total_income", "gross_income");
+  const deductibleExpenses = num("total_expenses", "deductible_expenses");
+  const netIncome = num("taxable_income", "net_income");
+  const irpfRate = num("irpf_rate") || 20;
+  const previousPaid = num("prior_payments", "previous_quarters_irpf");
 
   return (
     <div className="bg-bg-50 border border-bd-50 rounded-xl p-6">
@@ -147,12 +155,12 @@ const IRPFSummaryWidget = ({ startDate, endDate, quarter, userId, title = "IRPF 
       </div>
 
       {/* Previous Quarters Info (if applicable) */}
-      {quarter > 1 && summary.previous_quarters_irpf > 0 && (
+      {quarter > 1 && previousPaid > 0 && (
         <div className="mt-4 pt-4 border-t border-bd-50">
           <div className="flex items-center justify-between text-xs">
             <span className="text-fg-60">Previous Quarters Paid</span>
             <span className="font-medium text-fg-50">
-              €{Number(summary.previous_quarters_irpf || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              €{previousPaid.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

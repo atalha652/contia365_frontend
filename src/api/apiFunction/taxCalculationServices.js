@@ -41,6 +41,8 @@ export const getVATSummary = async ({ startDate, endDate, userId }) => {
     return {
       output_vat: 0,
       input_vat: 0,
+      output_vat_amount: 0,
+      input_vat_amount: 0,
       vat_payable: 0,
       breakdown: []
     };
@@ -84,6 +86,9 @@ export const getIRPFSummary = async ({ startDate, endDate, quarter, userId, irpf
     console.error("Error fetching IRPF summary:", error);
     // Return empty data instead of throwing to prevent UI crashes
     return {
+      total_income: 0,
+      total_expenses: 0,
+      taxable_income: 0,
       gross_income: 0,
       deductible_expenses: 0,
       net_income: 0,

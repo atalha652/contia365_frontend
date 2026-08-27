@@ -62,6 +62,7 @@ const ModeloCalculationCard = ({
   startingFiling,
   nif,
   filingStatus,
+  showDraftPdfButton = false,
 }) => {
   const [downloading, setDownloading] = useState(false);
 
@@ -243,13 +244,18 @@ const ModeloCalculationCard = ({
             type="button"
             onClick={handleDownload}
             disabled={downloading}
-            className="p-2 hover:bg-bg-60 rounded-lg transition-colors disabled:opacity-50"
-            title="Download report"
-            aria-label={`Download Modelo ${modeloNo} report`}
+            className={`hover:bg-bg-60 rounded-lg transition-colors disabled:opacity-50 ${
+              showDraftPdfButton
+                ? "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-fg-50 border border-bd-50"
+                : "p-2"
+            }`}
+            title="Download draft PDF"
+            aria-label={`Download Modelo ${modeloNo} draft PDF`}
           >
             {downloading
               ? <Loader2 className="w-4 h-4 text-fg-50 animate-spin" />
               : <Download className="w-4 h-4 text-fg-50" />}
+            {showDraftPdfButton && <span>{downloading ? "Preparing…" : "Download draft PDF"}</span>}
           </button>
           <div className={`w-10 h-10 bg-gradient-to-br ${cfg.color} rounded-xl flex items-center justify-center`}>
             <FileText className="w-5 h-5 text-white" />

@@ -16,8 +16,10 @@ import {
   FilePlus,
   ShieldCheck,
   Settings,
+  Inbox,
 } from "lucide-react";
 import Logo from "./Logo";
+import { canViewSalesWaitlist } from "../../../api/apiFunction/waitlistServices";
 
 const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   const location = useLocation();
@@ -57,6 +59,13 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
     { to: "/app/settings/compliance", label: "Certificate", icon: Settings },
   ];
+  if (canViewSalesWaitlist(user)) {
+    items.splice(items.length - 1, 0, {
+      to: "/app/waitlist",
+      label: "Sales waitlist",
+      icon: Inbox,
+    });
+  }
 
   const isActive = (path) => location.pathname.startsWith(path);
 

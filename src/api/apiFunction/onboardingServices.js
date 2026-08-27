@@ -44,6 +44,10 @@ export const syncOnboardingStatus = (status) => {
     user_type: canonicalizeUserType(status.user_type_selected)
       ?? canonicalizeUserType(user.user_type)
       ?? user.user_type,
+    user_type_selection: canonicalizeUserType(status.user_type_selected)
+      ?? canonicalizeUserType(user.user_type_selection)
+      ?? user.user_type_selection,
+    role: status.role ?? user.role,
     current_step: status.current_step,
     onboarding_completed: status.onboarding_completed,
     fiscal_profile_completed: status.fiscal_profile_completed,

@@ -6,6 +6,8 @@ import { Button, Badge, Select } from "../../../ui";
 import {
   createTaxFiling,
   FILING_STATUSES,
+  formatTaxFilingError,
+  getFilingConflict,
   getFilingId,
   getFilingStatus,
   listTaxFilings,
@@ -99,8 +101,15 @@ const TaxFilingList = () => {
       if (id) navigate(`/app/tax-filings/cases/${id}${calendarQuery}`);
       else loadFilings();
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      toast.error(typeof detail === "string" ? detail : "Failed to create tax filing");
+      const conflict = getFilingConflict(err);
+      if (conflict?.filingId) {
+        toast.info(
+          `This period already exists${conflict.periodKey ? ` (${conflict.periodKey})` : ""}. Opening that filing.`
+        );
+        navigate(`/app/tax-filings/cases/${conflict.filingId}${calendarQuery}`);
+      } else {
+        toast.error(formatTaxFilingError(err, "Failed to create tax filing"));
+      }
     } finally {
       setCreating(false);
     }

@@ -9,7 +9,12 @@ import {
   getTaxReports,
   ANNUAL_MODELOS,
 } from "../../../../api/apiFunction/taxCalculationServices";
-import { createTaxFiling, getFilingId } from "../../../../api/apiFunction/taxFilingServices";
+import {
+  createTaxFiling,
+  formatTaxFilingError,
+  getFilingConflict,
+  getFilingId,
+} from "../../../../api/apiFunction/taxFilingServices";
 import { verifyInvoiceChain } from "../../../../api/apiFunction/invoiceServices";
 import { getMyFiscalProfile } from "../../../../api/apiFunction/onboardingServices";
 import {
@@ -227,8 +232,15 @@ const TaxCalculations = () => {
       toast.success(`Draft filing created for modelo ${modeloNo}`);
       if (id) navigate(`/app/tax-filings/cases/${id}${calendarQuery}`);
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      toast.error(typeof detail === "string" ? detail : "Failed to create tax filing");
+      const conflict = getFilingConflict(err);
+      if (conflict?.filingId) {
+        toast.info(
+          `This period already exists${conflict.periodKey ? ` (${conflict.periodKey})` : ""}. Opening that filing.`
+        );
+        navigate(`/app/tax-filings/cases/${conflict.filingId}${calendarQuery}`);
+      } else {
+        toast.error(formatTaxFilingError(err, "Failed to create tax filing"));
+      }
     } finally {
       setStartingModelo(null);
     }

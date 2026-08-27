@@ -73,9 +73,16 @@ const VATSummaryWidget = ({ startDate, endDate, userId, title = "VAT Summary" })
     return null;
   }
 
-  const vatPayable = Number(summary.vat_payable || 0);
-  const outputVAT = Number(summary.output_vat_amount || 0);
-  const inputVAT = Number(summary.input_vat_amount || 0);
+  const num = (...keys) => {
+    for (const key of keys) {
+      const value = summary[key];
+      if (value != null && value !== "") return Number(value);
+    }
+    return 0;
+  };
+  const vatPayable = num("vat_payable");
+  const outputVAT = num("output_vat", "output_vat_amount");
+  const inputVAT = num("input_vat", "input_vat_amount");
   const isPositive = vatPayable >= 0;
 
   return (

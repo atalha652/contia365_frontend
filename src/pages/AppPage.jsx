@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import Sidebar from "../components/pages/app/Sidebar";
 import Header from "../components/pages/app/Header";
@@ -7,20 +7,35 @@ import { updatePageTitle } from "../utils/titleUtils";
 import { toast } from "react-toastify";
 import AiChat from "../components/pages/app/AiChat";
 import { verifyInvoiceChain } from "../api/apiFunction/invoiceServices";
+import {
+  canViewAdminUsers,
+  getStoredUser,
+  isAdminAppPath,
+} from "../api/apiFunction/adminUserServices";
 import { ShieldAlert } from "lucide-react";
 
 const AppPage = () => {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAdmin = canViewAdminUsers(getStoredUser());
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [headerTitle, setHeaderTitle] = useState("App");
   const [chainValid, setChainValid] = useState(null); // null=unchecked, true=ok, false=broken
 
-  // Run chain check once on app load — cached in state for the session
   useEffect(() => {
+    if (isAdmin && !isAdminAppPath(location.pathname)) {
+      navigate("/app/users", { replace: true });
+    }
+  }, [isAdmin, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (isAdmin) return undefined;
     verifyInvoiceChain()
       .then((data) => setChainValid(data?.valid ?? true))
       .catch(() => setChainValid(null));
-  }, []);
+    return undefined;
+  }, [isAdmin]);
 
   // Shared state (ported from sample.jsx)
   const [invoices, setInvoices] = useState([]);
@@ -189,7 +204,6 @@ const AppPage = () => {
   };
 
   // Page title sync
-  const location = useLocation();
   useEffect(() => {
     const path = location.pathname.toLowerCase();
     let label = "App";
@@ -206,6 +220,7 @@ const AppPage = () => {
     else if (path.includes("/app/invoices")) label = "Invoices";
     else if (path.includes("/app/compliance")) label = "Chain Integrity";
     else if (path.includes("/app/waitlist")) label = "Sales waitlist";
+    else if (path.includes("/app/users")) label = "Users";
     else if (path.includes("/app/settings/compliance")) label = "Certificate Settings";
     setHeaderTitle(label);
     updatePageTitle(label);
@@ -274,7 +289,7 @@ const AppPage = () => {
         </div>
       </div>
 
-      <AiChat />
+      {!isAdmin && <AiChat />}
     </div>
   );
 };

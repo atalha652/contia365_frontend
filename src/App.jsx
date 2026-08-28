@@ -38,6 +38,11 @@ import TaxCalculations from "./components/pages/app/taxFilling/TaxCalculations";
 import TaxFilingList from "./components/pages/app/taxFilling/TaxFilingList";
 import TaxFilingDetail from "./components/pages/app/taxFilling/TaxFilingDetail";
 import SalesWaitlist from "./components/pages/app/SalesWaitlist";
+import AdminUsers from "./components/pages/app/AdminUsers";
+import {
+  canViewAdminUsers,
+  getStoredUser,
+} from "./api/apiFunction/adminUserServices";
 // Removed Bank Reconciliation, Expenses, Payroll per request
 import InvoiceList from "./components/pages/app/invoices/InvoiceList";
 import InvoiceEditor from "./components/pages/app/invoices/InvoiceEditor";
@@ -57,7 +62,18 @@ const CountryProtectedApp = () => {
     getOnboardingStatus().then((status) => {
       if (cancelled) return;
       if (status) syncOnboardingStatus(status);
-      setAccessState(status?.current_step === "completed" ? "allowed" : "blocked");
+      let role = String(status?.role || "").toLowerCase();
+      if (!role) {
+        try {
+          role = String(
+            JSON.parse(localStorage.getItem("user") || "{}").role || ""
+          ).toLowerCase();
+        } catch {
+          role = "";
+        }
+      }
+      const completed = status?.current_step === "completed";
+      setAccessState(completed || role === "admin" ? "allowed" : "blocked");
     });
     return () => {
       cancelled = true;
@@ -75,6 +91,11 @@ const CountryProtectedApp = () => {
   return accessState === "allowed"
     ? <AppPage />
     : <Navigate to="/onboarding" replace />;
+};
+
+const AppHomeRedirect = () => {
+  const to = canViewAdminUsers(getStoredUser()) ? "users" : "dashboard";
+  return <Navigate to={to} replace />;
 };
 
 function App() {
@@ -107,7 +128,7 @@ function App() {
 
             {/* App routes */}
             <Route path="/app" element={<CountryProtectedApp />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route index element={<AppHomeRedirect />} />
               <Route path="dashboard" element={<AppDashboard />} />
               <Route path="expenses" element={<Vouchers />}>
                 <Route index element={<Navigate to="uploads" replace />} />
@@ -127,6 +148,7 @@ function App() {
               <Route path="tax-filings/cases" element={<TaxFilingList />} />
               <Route path="tax-filings/cases/:filingId" element={<TaxFilingDetail />} />
               <Route path="waitlist" element={<SalesWaitlist />} />
+              <Route path="users" element={<AdminUsers />} />
               <Route path="bank-transactions" element={<BankTransactions />} />
               <Route path="bank-transactions/:accountId" element={<BankTransactionDetails />} />
               {/* Invoice lifecycle routes */}

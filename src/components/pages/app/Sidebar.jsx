@@ -17,9 +17,11 @@ import {
   ShieldCheck,
   Settings,
   Inbox,
+  UserCog,
 } from "lucide-react";
 import Logo from "./Logo";
 import { canViewSalesWaitlist } from "../../../api/apiFunction/waitlistServices";
+import { canViewAdminUsers } from "../../../api/apiFunction/adminUserServices";
 
 const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   const location = useLocation();
@@ -46,20 +48,24 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
     navigate("/sign-in");
   };
 
-  // Sidebar navigation items for app sections (renamed Actions -> Execution)
-  const items = [
-    { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
-    { to: "/app/expenses", label: "Expenses", icon: FileText },
-    { to: "/app/requests", label: "Requests", icon: CheckSquare },
-    { to: "/app/execution", label: "Execution", icon: Receipt },
-    { to: "/app/invoices", label: "Invoices", icon: FilePlus },
-    // { to: "/app/bank-transactions", label: "Bank Accounts", icon: Landmark },
-    { to: "/app/ledger", label: "Ledger", icon: BookOpen },
-    { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
-    { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
-    { to: "/app/settings/compliance", label: "Certificate", icon: Settings },
-  ];
-  if (canViewSalesWaitlist(user)) {
+  const isAdmin = canViewAdminUsers(user);
+  const items = isAdmin
+    ? [
+        { to: "/app/users", label: "Users", icon: UserCog },
+        { to: "/app/waitlist", label: "Sales waitlist", icon: Inbox },
+      ]
+    : [
+        { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
+        { to: "/app/expenses", label: "Expenses", icon: FileText },
+        { to: "/app/requests", label: "Requests", icon: CheckSquare },
+        { to: "/app/execution", label: "Execution", icon: Receipt },
+        { to: "/app/invoices", label: "Invoices", icon: FilePlus },
+        { to: "/app/ledger", label: "Ledger", icon: BookOpen },
+        { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
+        { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
+        { to: "/app/settings/compliance", label: "Certificate", icon: Settings },
+      ];
+  if (!isAdmin && canViewSalesWaitlist(user)) {
     items.splice(items.length - 1, 0, {
       to: "/app/waitlist",
       label: "Sales waitlist",

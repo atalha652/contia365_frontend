@@ -46,7 +46,9 @@ const SignIn = () => {
         localStorage.setItem("user", JSON.stringify(response.data));
         syncOnboardingStatus(response.data);
         toast.success("Login successful! Redirecting...");
-        if (response.data?.current_step === "completed") {
+        if (response.data?.role === "admin") {
+          navigate("/app/users");
+        } else if (response.data?.current_step === "completed") {
           navigate("/app/dashboard");
         } else {
           navigate("/onboarding");

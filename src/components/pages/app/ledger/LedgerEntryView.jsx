@@ -4,7 +4,10 @@ import { ArrowLeft, BookOpen, Cpu, Building2, User, Loader2, Trash2 } from "luci
 import { toast } from "react-toastify";
 import { Button, Badge } from "../../../ui";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
-import { getLedgerEntry, deleteLedgerEntry } from "../../../../api/apiFunction/ledgerServices";
+import { getLedgerEntry, deleteLedgerEntry, overrideLedgerClassification } from "../../../../api/apiFunction/ledgerServices";
+import { getMyFiscalProfile } from "../../../../api/apiFunction/onboardingServices";
+import TaxNatureFields from "../tax/TaxNatureFields";
+import { entryOperationType, entryWithholdingType, matchedModeloNos } from "../../../../utils/taxNature";
 
 const fmt = (n) => `€${Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`;
 const fmtRate = (v) => (v == null || v === "" ? "—" : `${Number(v).toFixed(2)}%`);
@@ -27,6 +30,11 @@ const LedgerEntryView = () => {
   const [loading, setLoading] = useState(!location.state?.entry);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [operationType, setOperationType] = useState(() => entryOperationType(location.state?.entry));
+  const [withholdingType, setWithholdingType] = useState(() => entryWithholdingType(location.state?.entry));
+  const [selectedModelos, setSelectedModelos] = useState(() => matchedModeloNos(location.state?.entry));
+  const [applicableModelos, setApplicableModelos] = useState([]);
+  const [savingTax, setSavingTax] = useState(false);
 
   const userId = useMemo(() => {
     try {
@@ -42,7 +50,12 @@ const LedgerEntryView = () => {
     const load = async () => {
       try {
         const data = await getLedgerEntry({ ledger_id: ledgerId, user_id: userId });
-        if (active) setEntry(data);
+        if (active) {
+          setEntry(data);
+          setOperationType(entryOperationType(data));
+          setWithholdingType(entryWithholdingType(data));
+          setSelectedModelos(matchedModeloNos(data));
+        }
       } catch {
         if (!active) return;
         toast.error("Failed to load ledger entry");
@@ -52,10 +65,71 @@ const LedgerEntryView = () => {
       }
     };
     load();
+    getMyFiscalProfile()
+      .then((profile) => {
+        const nos = (profile?.periodic_tax_obligations || [])
+          .map((item) => String(item?.modelo || ""))
+          .filter(Boolean);
+        if (active) setApplicableModelos(Array.from(new Set(nos)));
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
   }, [ledgerId, userId, navigate]);
+
+  const applyClassification = (result) => {
+    setEntry((prev) => ({
+      ...prev,
+      invoice_data: {
+        ...(prev?.invoice_data || {}),
+        operation_type: result?.signals?.operation_type || operationType,
+        withholding_type: result?.signals?.withholding_type || withholdingType,
+      },
+      tax_classification: {
+        ...(prev?.tax_classification || {}),
+        matched_modelos: result?.matched_modelos || [],
+        modelo_ids: result?.modelo_ids || [],
+        signals: result?.signals,
+        user_override: result?.user_override,
+      },
+    }));
+    setSelectedModelos((result?.matched_modelos || []).map((item) => String(item.modelo_no)));
+  };
+
+  const saveTaxNature = async () => {
+    try {
+      setSavingTax(true);
+      const result = await overrideLedgerClassification({
+        ledger_id: ledgerId,
+        operation_type: operationType,
+        withholding_type: withholdingType,
+      });
+      applyClassification(result);
+      toast.success("Tax type saved — modelos updated from amounts, not the description");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to save tax type");
+    } finally {
+      setSavingTax(false);
+    }
+  };
+
+  const saveModeloOverride = async (next) => {
+    try {
+      setSavingTax(true);
+      setSelectedModelos(next);
+      const result = await overrideLedgerClassification({
+        ledger_id: ledgerId,
+        modelo_nos: next,
+      });
+      applyClassification(result);
+      toast.success("Assigned modelos updated");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to override modelos");
+    } finally {
+      setSavingTax(false);
+    }
+  };
 
   const handleDelete = async () => {
     try {
@@ -131,11 +205,16 @@ const LedgerEntryView = () => {
               <div className="flex items-center gap-2 mt-1">
                 {type && <Badge variant={TYPE_VARIANTS[type] || "info"}>{type.toUpperCase()}</Badge>}
                 {entry.period && <Badge variant="info">{entry.period}</Badge>}
-                {entry.ai_modelo_id && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    <Cpu className="w-3 h-3" /> {entry.ai_modelo_id}
-                    {entry.ai_modelo_confidence ? ` · ${(entry.ai_modelo_confidence * 100).toFixed(0)}%` : ""}
+                {matchedModeloNos(entry).map((no) => (
+                  <span key={no} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <Cpu className="w-3 h-3" /> {no}
                   </span>
+                ))}
+                {entry.tax_classification?.user_override && (
+                  <Badge variant="warning">Override</Badge>
+                )}
+                {!matchedModeloNos(entry).length && (
+                  <span className="text-xs text-amber-500">Unclassified</span>
                 )}
               </div>
             </div>
@@ -193,6 +272,54 @@ const LedgerEntryView = () => {
               <div className="col-span-3">
                 <p className="text-xs text-fg-60">Amount in Words</p>
                 <p className="text-sm text-fg-40">{invoice.amount_in_words}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-bg-50 border border-bd-50 rounded-2xl p-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-fg-40">Tax nature</h2>
+              <p className="text-xs text-fg-60 mt-1">
+                Description is commercial text only. These fields decide which modelo the invoice lands on.
+              </p>
+            </div>
+            <TaxNatureFields
+              operationType={operationType}
+              withholdingType={withholdingType}
+              onOperationType={setOperationType}
+              onWithholdingType={setWithholdingType}
+            />
+            <Button variant="secondary" onClick={saveTaxNature} disabled={savingTax}>
+              {savingTax ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save tax type"}
+            </Button>
+            {applicableModelos.length > 0 && (
+              <div>
+                <p className="text-xs text-fg-60 mb-2">Assigned modelos (override if auto is wrong)</p>
+                <div className="flex flex-wrap gap-2">
+                  {applicableModelos.map((no) => {
+                    const checked = selectedModelos.includes(no);
+                    return (
+                      <button
+                        key={no}
+                        type="button"
+                        disabled={savingTax}
+                        onClick={() => {
+                          const next = checked
+                            ? selectedModelos.filter((item) => item !== no)
+                            : [...selectedModelos, no];
+                          saveModeloOverride(next);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border ${
+                          checked
+                            ? "bg-ac-02 text-white border-ac-02"
+                            : "bg-bg-40 text-fg-60 border-bd-50"
+                        }`}
+                      >
+                        {no}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

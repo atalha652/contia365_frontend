@@ -3,21 +3,17 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart3,
   FileText,
-  CreditCard,
   BookOpen,
-  Receipt,
-  Users,
   ChevronDown,
   ChevronUp,
   LogOut,
   KeyRound,
-  CheckSquare,
-  // Landmark,
   FilePlus,
   ShieldCheck,
   Settings,
   Inbox,
   UserCog,
+  Users,
 } from "lucide-react";
 import Logo from "./Logo";
 import { canViewSalesWaitlist } from "../../../api/apiFunction/waitlistServices";
@@ -51,14 +47,13 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   const isAdmin = canViewAdminUsers(user);
   const items = isAdmin
     ? [
+        { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
         { to: "/app/users", label: "Users", icon: UserCog },
         { to: "/app/waitlist", label: "Sales waitlist", icon: Inbox },
       ]
     : [
         { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
         { to: "/app/expenses", label: "Expenses", icon: FileText },
-        { to: "/app/requests", label: "Requests", icon: CheckSquare },
-        { to: "/app/execution", label: "Execution", icon: Receipt },
         { to: "/app/invoices", label: "Invoices", icon: FilePlus },
         { to: "/app/ledger", label: "Ledger", icon: BookOpen },
         { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },

@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { Button, Badge } from "../../../ui";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
 import { getInvoice, updateInvoice, issueInvoice, refreshInvoiceOCR } from "../../../../api/apiFunction/invoiceServices";
+import TaxNatureFields from "../tax/TaxNatureFields";
 
 const emptyLine = () => ({ description: "", quantity: 1, unit_price: 0, vat_rate: 21 });
 
@@ -25,6 +26,8 @@ const InvoiceEditor = () => {
   const [notes, setNotes] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [invoiceType, setInvoiceType] = useState("income"); // "income" | "expense"
+  const [operationType, setOperationType] = useState("general");
+  const [withholdingType, setWithholdingType] = useState("none");
 
   const isDraft = invoice?.status === "draft";
 
@@ -40,6 +43,8 @@ const InvoiceEditor = () => {
         if (data?.notes) setNotes(data.notes);
         if (data?.due_date) setDueDate(data.due_date.split("T")[0]);
         if (data?.invoice_type) setInvoiceType(data.invoice_type);
+        if (data?.operation_type) setOperationType(data.operation_type);
+        if (data?.withholding_type) setWithholdingType(data.withholding_type);
         // If not draft, redirect to view
         if (data?.status && data.status !== "draft") {
           navigate(`/app/invoices/view/${invoiceId}`, { replace: true });
@@ -90,6 +95,8 @@ const InvoiceEditor = () => {
       vat_rate: Number(l.vat_rate) || 0,
       irpf_rate: Number(l.irpf_rate) || 0,
     })),
+    operation_type: operationType,
+    withholding_type: withholdingType,
   });
 
   const handleSave = async () => {
@@ -114,6 +121,8 @@ const InvoiceEditor = () => {
       if (updated?.customer) setCustomer({ name: updated.customer.name || "", email: updated.customer.email || "", address: updated.customer.address || "", tax_id: updated.customer.tax_id || "" });
       if (Array.isArray(updated?.lines) && updated.lines.length) setLines(updated.lines);
       if (updated?.invoice_type) setInvoiceType(updated.invoice_type);
+      if (updated?.operation_type) setOperationType(updated.operation_type);
+      if (updated?.withholding_type) setWithholdingType(updated.withholding_type);
       toast.success("OCR data refreshed");
     } catch (err) {
       const detail = err?.response?.data?.detail;
@@ -181,7 +190,7 @@ const InvoiceEditor = () => {
           {isDraft && (
             <div className="flex items-center gap-2">
               {/* Show Refresh OCR only when OCR data is missing/stale */}
-              {!invoice?.ocr_source && (
+              {!invoice?.ocr_source && invoice?.source !== "manual" && (
                 <Button variant="secondary" onClick={handleRefreshOCR} disabled={refreshing} className="flex items-center gap-2">
                   {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   {refreshing ? "Refreshing…" : "Refresh OCR"}
@@ -249,6 +258,20 @@ const InvoiceEditor = () => {
                 className="px-3 py-2 text-sm bg-bg-40 border border-bd-50 rounded-lg text-fg-50 focus:outline-none focus:ring-2 focus:ring-ac-02 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
+          </div>
+
+          <div className="bg-bg-50 border border-bd-50 rounded-2xl p-6">
+            <h2 className="text-sm font-semibold text-fg-40 mb-1">Tax nature</h2>
+            <p className="text-xs text-fg-60 mb-4">
+              These fields put the invoice on the right modelo. Changing the line description does not.
+            </p>
+            <TaxNatureFields
+              operationType={operationType}
+              withholdingType={withholdingType}
+              onOperationType={setOperationType}
+              onWithholdingType={setWithholdingType}
+              disabled={!isDraft}
+            />
           </div>
 
           {/* Line Items */}

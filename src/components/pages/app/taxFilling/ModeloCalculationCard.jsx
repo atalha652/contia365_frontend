@@ -8,6 +8,7 @@ import { FileText, TrendingUp, Calculator, Download, Building2, Receipt, Loader2
 import { toast } from "react-toastify";
 import { Button } from "../../../ui";
 import { downloadModeloReportPdf } from "../../../../utils/taxReportPdf";
+import { invoiceLabel, operationLabel, entryOperationType } from "../../../../utils/taxNature";
 
 const fmt = (val) =>
   `€${Number(val || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`;
@@ -19,6 +20,12 @@ const KEYS = {
   vatPayable: ["vat_payable", "net_vat"],
   outputVat: ["output_vat", "total_output_vat"],
   inputVat: ["input_vat", "total_input_vat"],
+  ispVat: ["isp_vat"],
+  intraVat: ["intra_vat"],
+  recargoVat: ["recargo_vat"],
+  usedGoodsBase: ["used_goods_base"],
+  prorrataPercent: ["prorrata_percent"],
+  inputDeductible: ["input_vat_deductible"],
   irpfToPay: ["irpf_to_pay", "irpf_payable"],
   irpfRate: ["irpf_rate"],
   grossIncome: ["gross_income", "total_income"],
@@ -32,9 +39,10 @@ const KEYS = {
   totalWithholding: ["total_withheld", "total_withholding", "withholding_payable"],
   percipientCount: ["percipient_count"],
   totalIncome: ["total_income", "gross_income"],
-  annualVatPayable: ["annual_vat_payable", "net_vat", "vat_payable"],
-  totalOutputVat: ["total_output_vat", "output_vat"],
-  totalInputVat: ["total_input_vat", "input_vat"],
+          annualVatPayable: ["annual_vat_payable", "net_vat", "vat_payable"],
+          totalOutputVat: ["total_output_vat", "output_vat"],
+          totalInputVat: ["total_input_vat", "input_vat"],
+          quarterlyPayments: ["quarterly_payments"],
 };
 
 const MODELO_CONFIG = {
@@ -63,6 +71,7 @@ const ModeloCalculationCard = ({
   nif,
   filingStatus,
   showDraftPdfButton = false,
+  includedEntries = [],
 }) => {
   const [downloading, setDownloading] = useState(false);
 
@@ -129,6 +138,11 @@ const ModeloCalculationCard = ({
           rows: [
             { label: "Output VAT", value: fmt(pick(KEYS.outputVat)) },
             { label: "Input VAT", value: fmt(pick(KEYS.inputVat)) },
+            ...(Number(pick(KEYS.ispVat) || 0) ? [{ label: "ISP VAT", value: fmt(pick(KEYS.ispVat)) }] : []),
+            ...(Number(pick(KEYS.intraVat) || 0) ? [{ label: "Intra-community VAT", value: fmt(pick(KEYS.intraVat)) }] : []),
+            ...(Number(pick(KEYS.recargoVat) || 0) ? [{ label: "Recargo", value: fmt(pick(KEYS.recargoVat)) }] : []),
+            ...(Number(pick(KEYS.usedGoodsBase) || 0) ? [{ label: "Used-goods base", value: fmt(pick(KEYS.usedGoodsBase)) }] : []),
+            ...(Number(pick(KEYS.prorrataPercent) || 100) < 100 ? [{ label: "Prorrata", value: `${Number(pick(KEYS.prorrataPercent)).toFixed(0)}%` }] : []),
             { label: "VAT Payable", value: fmt(pick(KEYS.vatPayable)), bold: true },
           ],
           breakdown: vatByRateRows.length
@@ -185,6 +199,8 @@ const ModeloCalculationCard = ({
           rows: [
             { label: "Total Output VAT", value: fmt(pick(KEYS.totalOutputVat)) },
             { label: "Total Input VAT", value: fmt(pick(KEYS.totalInputVat)) },
+            ...(Number(pick(KEYS.ispVat) || 0) ? [{ label: "ISP VAT", value: fmt(pick(KEYS.ispVat)) }] : []),
+            ...(Number(pick(KEYS.recargoVat) || 0) ? [{ label: "Recargo", value: fmt(pick(KEYS.recargoVat)) }] : []),
           ],
         };
       default:
@@ -288,6 +304,29 @@ const ModeloCalculationCard = ({
               <p className="text-lg font-semibold text-fg-40">{fmt(pick(KEYS.inputVat))}</p>
             </div>
           </div>
+          {(Number(pick(KEYS.ispVat) || 0) > 0
+            || Number(pick(KEYS.intraVat) || 0) > 0
+            || Number(pick(KEYS.recargoVat) || 0) > 0
+            || Number(pick(KEYS.usedGoodsBase) || 0) > 0
+            || Number(pick(KEYS.prorrataPercent) || 100) < 100) && (
+            <div className="space-y-0">
+              {Number(pick(KEYS.ispVat) || 0) > 0 && (
+                <Row label="ISP VAT" value={fmt(pick(KEYS.ispVat))} />
+              )}
+              {Number(pick(KEYS.intraVat) || 0) > 0 && (
+                <Row label="Intra-community VAT" value={fmt(pick(KEYS.intraVat))} />
+              )}
+              {Number(pick(KEYS.recargoVat) || 0) > 0 && (
+                <Row label="Recargo de equivalencia" value={fmt(pick(KEYS.recargoVat))} />
+              )}
+              {Number(pick(KEYS.usedGoodsBase) || 0) > 0 && (
+                <Row label="Used-goods base" value={fmt(pick(KEYS.usedGoodsBase))} />
+              )}
+              {Number(pick(KEYS.prorrataPercent) || 100) < 100 && (
+                <Row label="Prorrata (deductible IVA)" value={`${Number(pick(KEYS.prorrataPercent)).toFixed(0)}%`} />
+              )}
+            </div>
+          )}
           {vatByRateRows.length > 0 && (
             <div className="pt-3 border-t border-bd-50">
               <p className="text-xs font-medium text-fg-60 mb-2">Breakdown by Rate</p>
@@ -435,6 +474,24 @@ const ModeloCalculationCard = ({
           <div className="space-y-0">
             <Row label="Total Output VAT" value={fmt(pick(KEYS.totalOutputVat))} />
             <Row label="Total Input VAT"  value={fmt(pick(KEYS.totalInputVat))} />
+            {Number(pick(KEYS.ispVat) || 0) > 0 && (
+              <Row label="ISP VAT" value={fmt(pick(KEYS.ispVat))} />
+            )}
+            {Number(pick(KEYS.intraVat) || 0) > 0 && (
+              <Row label="Intra-community VAT" value={fmt(pick(KEYS.intraVat))} />
+            )}
+            {Number(pick(KEYS.recargoVat) || 0) > 0 && (
+              <Row label="Recargo de equivalencia" value={fmt(pick(KEYS.recargoVat))} />
+            )}
+            {Number(pick(KEYS.usedGoodsBase) || 0) > 0 && (
+              <Row label="Used-goods base" value={fmt(pick(KEYS.usedGoodsBase))} />
+            )}
+            {Number(pick(KEYS.prorrataPercent) || 100) < 100 && (
+              <Row label="Prorrata" value={`${Number(pick(KEYS.prorrataPercent)).toFixed(0)}%`} />
+            )}
+            {totals.regimen_simplificado && (
+              <Row label="VAT régimen" value="Simplificado (modules not computed)" />
+            )}
           </div>
           {vatByRateRows.length > 0 && (
             <div className="pt-3 border-t border-bd-50">
@@ -447,6 +504,25 @@ const ModeloCalculationCard = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {includedEntries.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-bd-50">
+          <p className="text-xs font-medium text-fg-60 mb-2">
+            Invoices on this modelo ({includedEntries.length})
+          </p>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {includedEntries.slice(0, 12).map((entry) => (
+              <div key={entry._id || entry.id} className="flex items-center justify-between text-xs">
+                <span className="text-fg-40 truncate mr-2">{invoiceLabel(entry)}</span>
+                <span className="text-fg-60 whitespace-nowrap">{operationLabel(entryOperationType(entry))}</span>
+              </div>
+            ))}
+            {includedEntries.length > 12 && (
+              <p className="text-xs text-fg-60">+{includedEntries.length - 12} more</p>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
-import { LEDGERS_URL, SERVER_PATH } from "../restEndpoint";
-import { httpGet, httpPut, httpDelete, httpGetBlob } from "../../utils/httpMethods";
+import { LEDGERS_URL, TAX_ENGINE_URL } from "../restEndpoint";
+import { httpGet, httpPut, httpDelete, httpGetBlob, httpPatch } from "../../utils/httpMethods";
 
 // This service fetches all ledger entries for a user and normalizes the response
 export const getUserLedgers = async ({ user_id }) => {
@@ -66,6 +66,25 @@ export const updateLedgerInvoiceData = async ({ ledger_id, invoice_data }) => {
     console.error("Update ledger invoice_data error:", err);
     throw err;
   }
+};
+
+export const overrideLedgerClassification = async ({
+  ledger_id,
+  modelo_nos,
+  operation_type,
+  withholding_type,
+  clear_override = false,
+}) => {
+  if (!ledger_id) throw new Error("Missing ledger_id");
+  const payload = { clear_override };
+  if (modelo_nos !== undefined) payload.modelo_nos = modelo_nos;
+  if (operation_type !== undefined) payload.operation_type = operation_type;
+  if (withholding_type !== undefined) payload.withholding_type = withholding_type;
+  const response = await httpPatch({
+    url: `${TAX_ENGINE_URL}/classify/${ledger_id}`,
+    payload,
+  });
+  return response?.data;
 };
 
 // This service deletes a ledger entry by ID

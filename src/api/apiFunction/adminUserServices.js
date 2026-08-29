@@ -14,7 +14,17 @@ export const canViewAdminUsers = (user = {}) =>
 
 export const isAdminAppPath = (pathname = "") => {
   const path = String(pathname).toLowerCase();
-  return path.startsWith("/app/users") || path.startsWith("/app/waitlist");
+  return (
+    path === "/app/dashboard" ||
+    path.startsWith("/app/dashboard/") ||
+    path.startsWith("/app/users") ||
+    path.startsWith("/app/waitlist")
+  );
+};
+
+export const getAdminDashboard = async () => {
+  const response = await httpGet({ url: `${ADMIN_URL}/dashboard` });
+  return response?.data || {};
 };
 
 export const ADMIN_PAGE_SIZE = 10;

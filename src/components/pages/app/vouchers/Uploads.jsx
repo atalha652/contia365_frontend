@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Upload, Plus, Search, Filter, MoreHorizontal, Loader2, History, RotateCw, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -7,8 +7,29 @@ import UploadVoucherModal from "./UploadVoucherModal";
 import ManualExpenseModal from "./ManualExpenseModal";
 import RightPanel from "../common/right-panel";
 import RejectionHistory from "../common/right-panel/RejectionHistory";
-import { listUserVouchers, sendVouchersForRequest } from "../../../../api/apiFunction/voucherServices";
+import { listUserVouchers, runVoucherOCR } from "../../../../api/apiFunction/voucherServices";
 import { createInvoiceFromVoucher } from "../../../../api/apiFunction/invoiceServices";
+
+const ocrPeriodFor = (period) => {
+  if (period && /^\d{4}-\d{2}$/.test(String(period))) return period;
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const isScanVoucher = (v) => {
+  const ocr = String(v.ocr_status || "").toLowerCase();
+  if (v.source === "manual" || ocr === "not_applicable") return false;
+  return (v.files_count || 0) > 0 || (Array.isArray(v.files) && v.files.length > 0);
+};
+
+const ocrBadgeVariant = (status) => {
+  const ocr = String(status || "").toLowerCase();
+  if (ocr === "done") return "success";
+  if (ocr === "failed") return "error";
+  if (ocr === "processing") return "info";
+  if (ocr === "not_applicable") return "default";
+  return "warning";
+};
 
 // This component manages uploads: listing vouchers, filtering, preview, and sending for approval
 const VouchersUploads = () => {
@@ -22,10 +43,12 @@ const VouchersUploads = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedIds, setSelectedIds] = useState([]);
-  const [sending, setSending] = useState(false);
   const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelVoucher, setPanelVoucher] = useState(null);
+  const [bulkOcrSending, setBulkOcrSending] = useState(false);
+  const [rowOcrIds, setRowOcrIds] = useState([]);
+  const pollRef = useRef(null);
 
   // Simple English: Read user info from local storage and get id.
   const user = useMemo(() => {
@@ -37,19 +60,37 @@ const VouchersUploads = () => {
   }, []);
   const userId = user?.id || user?._id || user?.user_id || user?.uid;
 
+  const startPolling = () => {
+    if (pollRef.current || !userId) return;
+    pollRef.current = setInterval(async () => {
+      const { vouchers: items } = await listUserVouchers({ user_id: userId }).catch(() => ({ vouchers: [] }));
+      const list = Array.isArray(items) ? items : [];
+      setVouchers(list);
+      const stillProcessing = list.some((v) => String(v.OCR || v.ocr_status || "").toLowerCase() === "processing");
+      if (!stillProcessing) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }, 3000);
+  };
+
   // This function fetches vouchers for the current user
-  const fetchVouchers = async () => {
+  const fetchVouchers = async ({ silent = false } = {}) => {
     if (!userId) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const { vouchers: items } = await listUserVouchers({ user_id: userId });
-      setVouchers(Array.isArray(items) ? items : []);
+      const list = Array.isArray(items) ? items : [];
+      setVouchers(list);
+      if (list.some((v) => String(v.OCR || v.ocr_status || "").toLowerCase() === "processing")) {
+        startPolling();
+      }
     } catch (err) {
       const message = err?.response?.data?.detail || err.message || "Failed to fetch vouchers";
       setError(message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -59,26 +100,15 @@ const VouchersUploads = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   // This toggles a voucher id selection
   const toggleSelect = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-
-  // This moves selected vouchers to requests (send for approval)
-  const moveSelectedToRequests = async () => {
-    if (selectedIds.length === 0 || !userId) return;
-    try {
-      setSending(true);
-      setError("");
-      await sendVouchersForRequest({ voucher_ids: selectedIds, approver_id: userId });
-      setSelectedIds([]);
-      await fetchVouchers();
-    } catch (err) {
-      const message = err?.response?.data?.detail || err.message || "Failed to send for request";
-      setError(message);
-    } finally {
-      setSending(false);
-    }
   };
 
   // This normalizes the API data into table items
@@ -98,6 +128,9 @@ const VouchersUploads = () => {
         rejected_by: v.rejected_by,
         rejection_reason: v.rejection_reason,
         approver_id: v.approver_id,
+        invoice_id: v.invoice_id || null,
+        ocr_status: v.OCR || v.ocr_status || "pending",
+        source: v.source || "",
       }))
     : [];
 
@@ -176,7 +209,7 @@ const VouchersUploads = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-fg-40">Expenses</h2>
-            <p className="text-sm text-fg-60">Manage uploads and Gmail purchases.</p>
+            <p className="text-sm text-fg-60">Upload scans, run OCR — approved automatically — then create invoice.</p>
           </div>
           {/* Header actions: Upload and Refresh placed opposite to the text, like Gmail */}
           <div className="flex items-center gap-2">
@@ -218,7 +251,7 @@ const VouchersUploads = () => {
           {/* Status Filter */}
           <div className="w-44">
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {["All Status", "pending", "awaiting_approval", "approved", "rejected"].map((option) => (
+              {["All Status", "pending", "approved", "rejected"].map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
             </Select>
@@ -234,15 +267,48 @@ const VouchersUploads = () => {
             <MoreHorizontal className="w-4 h-4" strokeWidth={1.5} />
           </Button> */}
 
-          {/* Send for approval */}
-          <Button variant="primary" onClick={moveSelectedToRequests} disabled={selectedIds.length === 0 || sending} className="whitespace-nowrap">
-            {sending ? (
+          <Button
+            variant="secondary"
+            disabled={selectedIds.length === 0 || bulkOcrSending}
+            className="whitespace-nowrap"
+            onClick={async () => {
+              if (!userId || selectedIds.length === 0) return;
+              const vouchersToProcess = selectedIds.filter((id) => {
+                const voucher = normalized.find((v) => v.id === id);
+                if (!voucher || !isScanVoucher(voucher)) return false;
+                const ocr = String(voucher.ocr_status || "").toLowerCase();
+                return ocr !== "done" && ocr !== "processing";
+              });
+              if (vouchersToProcess.length === 0) {
+                toast.info("Selected items are typed expenses or already have OCR completed");
+                return;
+              }
+              const first = normalized.find((v) => v.id === vouchersToProcess[0]);
+              try {
+                setBulkOcrSending(true);
+                await runVoucherOCR({
+                  user_id: userId,
+                  voucher_ids: vouchersToProcess,
+                  period: ocrPeriodFor(first?.period),
+                });
+                toast.success(`OCR started for ${vouchersToProcess.length} expense(s)`);
+                await fetchVouchers({ silent: true });
+                startPolling();
+              } catch (err) {
+                const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
+                toast.error(message);
+              } finally {
+                setBulkOcrSending(false);
+              }
+            }}
+          >
+            {bulkOcrSending ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Sending…</span>
+                <span>Starting OCR…</span>
               </span>
             ) : (
-              <>Send for approval ({selectedIds.length})</>
+              <>Run OCR Selected ({selectedIds.length})</>
             )}
           </Button>
         </div>
@@ -267,10 +333,12 @@ const VouchersUploads = () => {
             <TableHead className="whitespace-nowrap">Category</TableHead>
             <TableHead className="whitespace-nowrap">Files</TableHead>
             <TableHead className="whitespace-nowrap">Status</TableHead>
+            <TableHead className="whitespace-nowrap">OCR</TableHead>
             <TableHead className="whitespace-nowrap">Rejection Count</TableHead>
             <TableHead className="whitespace-nowrap">Created</TableHead>
             <TableHead className="whitespace-nowrap">Preview</TableHead>
             <TableHead className="whitespace-nowrap">Invoice</TableHead>
+            <TableHead className="whitespace-nowrap">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -302,6 +370,10 @@ const VouchersUploads = () => {
                 <TableCell>
                   <div className="h-6 w-24 bg-bg-40 rounded animate-pulse" />
                 </TableCell>
+                {/* OCR badge skeleton */}
+                <TableCell>
+                  <div className="h-6 w-20 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
                 {/* Rejection count skeleton */}
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -320,6 +392,12 @@ const VouchersUploads = () => {
                     <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
                     <div className="w-8 h-8 bg-bg-40 rounded-md animate-pulse" />
                   </div>
+                </TableCell>
+                <TableCell>
+                  <div className="h-8 w-24 bg-bg-40 rounded animate-pulse" />
+                </TableCell>
+                <TableCell>
+                  <div className="h-8 w-20 bg-bg-40 rounded animate-pulse" />
                 </TableCell>
               </TableRow>
             ))
@@ -345,6 +423,11 @@ const VouchersUploads = () => {
               <TableCell>
                 <Badge variant={voucher.status === "approved" ? "success" : voucher.status === "rejected" ? "error" : voucher.status === "awaiting_approval" ? "info" : "warning"}>
                   {String(voucher.status || "pending").toUpperCase()}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={ocrBadgeVariant(voucher.ocr_status)}>
+                  {String(isScanVoucher(voucher) ? voucher.ocr_status || "pending" : "N/A").toUpperCase()}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -399,12 +482,60 @@ const VouchersUploads = () => {
                   <span className="text-xs text-fg-60">—</span>
                 )}
               </TableCell>
+              <TableCell>
+                {isScanVoucher(voucher) ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={
+                      rowOcrIds.includes(voucher.id) ||
+                      String(voucher.ocr_status || "").toLowerCase() === "done" ||
+                      String(voucher.ocr_status || "").toLowerCase() === "processing"
+                    }
+                    onClick={async () => {
+                      if (!userId) return;
+                      try {
+                        setRowOcrIds((prev) => Array.from(new Set([...prev, voucher.id])));
+                        await runVoucherOCR({
+                          user_id: userId,
+                          voucher_ids: [voucher.id],
+                          period: ocrPeriodFor(voucher.period),
+                        });
+                        toast.success("OCR started");
+                        await fetchVouchers({ silent: true });
+                        startPolling();
+                      } catch (err) {
+                        const message = err?.response?.data?.detail || err.message || "Failed to start OCR";
+                        toast.error(message);
+                      } finally {
+                        setRowOcrIds((prev) => prev.filter((id) => id !== voucher.id));
+                      }
+                    }}
+                    className="whitespace-nowrap"
+                  >
+                    {rowOcrIds.includes(voucher.id) || String(voucher.ocr_status || "").toLowerCase() === "processing" ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        OCR…
+                      </span>
+                    ) : String(voucher.ocr_status || "").toLowerCase() === "done" ? (
+                      "OCR Done"
+                    ) : String(voucher.ocr_status || "").toLowerCase() === "failed" || String(voucher.ocr_status || "").toLowerCase() === "partial" ? (
+                      "Retry OCR"
+                    ) : (
+                      "Run OCR"
+                    )}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-fg-60">Typed</span>
+                )}
+              </TableCell>
             </TableRow>
               ))}
 
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-center" colSpan={10}>
+                  <TableCell className="text-center" colSpan={12}>
                     <span className="text-sm text-fg-60">No vouchers match your filters.</span>
                   </TableCell>
                 </TableRow>

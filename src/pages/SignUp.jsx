@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { updatePageTitle } from "../utils/titleUtils";
 import { signUp } from "../api/apiFunction/authServices";
+import Logo from "../components/pages/app/Logo";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -84,11 +85,7 @@ const SignUp = () => {
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-          </div>
+          <Logo className="w-16 h-16 mx-auto mb-4" />
           <h2 className="text-3xl font-bold text-slate-800">Create your account</h2>
           <p className="mt-2 text-sm text-slate-500">Get started with Contia 365</p>
         </div>

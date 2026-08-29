@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import { QRCodeSVG } from "qrcode.react";
 import confetti from "canvas-confetti";
 import { Button, Badge } from "../../../ui";
+import { operationLabel, withholdingLabel } from "../../../../utils/taxNature";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
 import {
   getInvoice,
@@ -241,6 +242,14 @@ const InvoiceView = () => {
                   <p className="text-sm text-fg-40 capitalize">{invoice.invoice_type}</p>
                 </div>
               )}
+              <div>
+                <p className="text-xs text-fg-60">VAT operation</p>
+                <p className="text-sm text-fg-40">{operationLabel(invoice.operation_type)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-fg-60">Withholding</p>
+                <p className="text-sm text-fg-40">{withholdingLabel(invoice.withholding_type)}</p>
+              </div>
               {invoice.fingerprint && (
                 <div>
                   <p className="text-xs text-fg-60">Fingerprint (SHA-256)</p>

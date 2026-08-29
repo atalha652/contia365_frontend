@@ -22,15 +22,12 @@ import InvoicesV3 from "./pages/InvoicesV3";
 import AppPage from "./pages/AppPage";
 import Onboarding from "./pages/Onboarding";
 import AppDashboard from "./components/pages/app/Dashboard";
+import AdminDashboard from "./components/pages/app/AdminDashboard";
 import Vouchers from "./components/pages/app/vouchers/Vouchers";
 import VouchersUploads from "./components/pages/app/vouchers/Uploads";
 import VouchersGmail from "./components/pages/app/vouchers/Gmail";
-import Requests from "./components/pages/app/Requests";
-// Use the new folder-based Ledger page for consistency with other tabs
 import Ledger from "./components/pages/app/ledger";
 import LedgerEntryView from "./components/pages/app/ledger/LedgerEntryView";
-// Execution tab uses the existing Actions component implementation
-import Actions from "./components/pages/app/actions";
 import BankTransactions from "./components/pages/app/BankTransactions";
 import BankTransactionDetails from "./components/pages/app/BankTransactionDetails";
 import TaxFiling from "./components/pages/app/taxFilling";
@@ -94,9 +91,11 @@ const CountryProtectedApp = () => {
 };
 
 const AppHomeRedirect = () => {
-  const to = canViewAdminUsers(getStoredUser()) ? "users" : "dashboard";
-  return <Navigate to={to} replace />;
+  return <Navigate to="dashboard" replace />;
 };
+
+const RoleDashboard = () =>
+  canViewAdminUsers(getStoredUser()) ? <AdminDashboard /> : <AppDashboard />;
 
 function App() {
   return (
@@ -129,7 +128,7 @@ function App() {
             {/* App routes */}
             <Route path="/app" element={<CountryProtectedApp />}>
               <Route index element={<AppHomeRedirect />} />
-              <Route path="dashboard" element={<AppDashboard />} />
+              <Route path="dashboard" element={<RoleDashboard />} />
               <Route path="expenses" element={<Vouchers />}>
                 <Route index element={<Navigate to="uploads" replace />} />
                 <Route path="uploads" element={<VouchersUploads />} />
@@ -138,9 +137,8 @@ function App() {
               <Route path="vouchers" element={<Navigate to="/app/expenses" replace />} />
               <Route path="vouchers/uploads" element={<Navigate to="/app/expenses/uploads" replace />} />
               <Route path="vouchers/gmail" element={<Navigate to="/app/expenses/gmail" replace />} />
-              <Route path="requests" element={<Requests />} />
-              {/* Renamed route: /app/execution */}
-              <Route path="execution" element={<Actions />} />
+              <Route path="requests" element={<Navigate to="/app/expenses/uploads" replace />} />
+              <Route path="execution" element={<Navigate to="/app/expenses/uploads" replace />} />
               <Route path="ledger" element={<Ledger />} />
               <Route path="ledger/:ledgerId" element={<LedgerEntryView />} />
               <Route path="tax-filings" element={<TaxFiling />} />

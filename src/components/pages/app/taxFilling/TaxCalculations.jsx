@@ -16,6 +16,7 @@ import {
   getFilingId,
 } from "../../../../api/apiFunction/taxFilingServices";
 import { verifyInvoiceChain } from "../../../../api/apiFunction/invoiceServices";
+import { entryHasModelo, entryInPeriod, matchedModeloNos } from "../../../../utils/taxNature";
 import { getMyFiscalProfile } from "../../../../api/apiFunction/onboardingServices";
 import {
   MONTHS,
@@ -73,6 +74,7 @@ const TaxCalculations = () => {
   }, [searchParams, selectedSemester, selectedYear]);
 
   const [ledgersLoading, setLedgersLoading] = useState(true);
+  const [ledgerEntries, setLedgerEntries] = useState([]);
   const [ledgerModeloIdMap, setLedgerModeloIdMap] = useState({});
   const [fiscalProfile, setFiscalProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -82,7 +84,9 @@ const TaxCalculations = () => {
     setLedgersLoading(true);
     listUserLedgers({ user_id: userId })
       .then(({ entries }) => {
-        const { modeloIdMap: idMap } = extractModeloNosFromLedgers(entries);
+        const list = Array.isArray(entries) ? entries : [];
+        setLedgerEntries(list);
+        const { modeloIdMap: idMap } = extractModeloNosFromLedgers(list);
         setLedgerModeloIdMap(idMap);
       })
       .catch(() => {})
@@ -208,6 +212,31 @@ const TaxCalculations = () => {
       selectedSemester === "annual" ? ANNUAL_MODELOS.has(no) : !ANNUAL_MODELOS.has(no)
     );
   }, [modeloNos, selectedSemester]);
+
+  const periodFilter = useMemo(() => ({
+    year: selectedYear,
+    quarter: selectedSemester === "annual" ? null : selectedSemester,
+    month: monthly303 ? selectedMonth : null,
+    annual: selectedSemester === "annual",
+  }), [selectedYear, selectedSemester, monthly303, selectedMonth]);
+
+  const periodEntries = useMemo(
+    () => ledgerEntries.filter((entry) => entryInPeriod(entry, periodFilter)),
+    [ledgerEntries, periodFilter]
+  );
+
+  const unclassifiedInPeriod = useMemo(
+    () => periodEntries.filter((entry) => matchedModeloNos(entry).length === 0),
+    [periodEntries]
+  );
+
+  const entriesByModelo = useMemo(() => {
+    const map = {};
+    visibleModelos.forEach((no) => {
+      map[no] = periodEntries.filter((entry) => entryHasModelo(entry, no));
+    });
+    return map;
+  }, [visibleModelos, periodEntries]);
 
   const calendarQuery = filingPeriodQuery({
     year: selectedYear,
@@ -358,6 +387,14 @@ const TaxCalculations = () => {
               </div>
             )}
 
+            {unclassifiedInPeriod.length > 0 && (
+              <div className="mb-4 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-600">
+                {unclassifiedInPeriod.length} invoice{unclassifiedInPeriod.length === 1 ? "" : "s"} in this period
+                {" "}{unclassifiedInPeriod.length === 1 ? "has" : "have"} no modelo.
+                Open the ledger and set the tax type — the description is not used.
+              </div>
+            )}
+
             {calcError && (
               <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-500">
                 {calcError}
@@ -421,6 +458,7 @@ const TaxCalculations = () => {
                       nif={fiscalProfile?.taxpayer_identity?.nif_nie}
                       onStartFiling={() => handleStartFiling(modeloNo)}
                       startingFiling={startingModelo === modeloNo}
+                      includedEntries={entriesByModelo[modeloNo] || []}
                     />
                   );
                 })}

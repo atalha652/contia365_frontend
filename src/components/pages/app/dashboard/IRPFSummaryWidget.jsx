@@ -85,7 +85,8 @@ const IRPFSummaryWidget = ({ startDate, endDate, quarter, userId, title = "IRPF 
   const grossIncome = num("total_income", "gross_income");
   const deductibleExpenses = num("total_expenses", "deductible_expenses");
   const netIncome = num("taxable_income", "net_income");
-  const irpfRate = num("irpf_rate") || 20;
+  const rawRate = num("irpf_rate");
+  const irpfRate = rawRate > 0 && rawRate <= 1 ? rawRate * 100 : (rawRate || 20);
   const previousPaid = num("prior_payments", "previous_quarters_irpf");
 
   return (

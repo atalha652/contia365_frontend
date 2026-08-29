@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input, Select } from "../../../ui";
 import { X, Plus, Trash2 } from "lucide-react";
 import { createManualVoucher } from "../../../../api/apiFunction/voucherServices";
+import TaxNatureFields from "../tax/TaxNatureFields";
 import { getAvailablePeriods } from "../../../../utils/helperFunction";
 import { toast } from "react-toastify";
 
@@ -40,6 +41,8 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState("");
   const [items, setItems] = useState([emptyItem()]);
+  const [operationType, setOperationType] = useState("general");
+  const [withholdingType, setWithholdingType] = useState("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,6 +73,8 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
     setInvoiceNumber("");
     setInvoiceDate("");
     setItems([emptyItem()]);
+    setOperationType("general");
+    setWithholdingType("none");
     setError("");
   };
 
@@ -133,9 +138,11 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
         invoice_date: invoiceDate || undefined,
         items: payloadItems,
         totals,
+        operation_type: operationType,
+        withholding_type: withholdingType,
       });
 
-      toast.success("Expense added");
+      toast.success(data?.invoice_id ? "Expense added. Draft invoice created." : "Expense added");
       onCreated && onCreated(data);
       handleClose();
     } catch (err) {
@@ -166,7 +173,7 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
       <ModalBody>
         <div className="space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-1">
           <p className="text-xs text-fg-60">
-            Enter the expense by hand. No file is uploaded and OCR is skipped.
+            Enter the expense by hand. It is approved on save. No file, OCR, or approval request.
           </p>
 
           <div>
@@ -262,6 +269,19 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
                 <Input type="text" value={customerNif} onChange={(e) => setCustomerNif(e.target.value)} />
               </div>
             </div>
+          </div>
+
+          <div className="border-t border-bd-50 pt-4">
+            <h3 className="text-sm font-semibold text-fg-40 mb-1">Tax nature</h3>
+            <p className="text-xs text-fg-60 mb-3">
+              Choose the form this expense belongs on. The line description is not used.
+            </p>
+            <TaxNatureFields
+              operationType={operationType}
+              withholdingType={withholdingType}
+              onOperationType={setOperationType}
+              onWithholdingType={setWithholdingType}
+            />
           </div>
 
           {/* Items */}

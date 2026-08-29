@@ -56,10 +56,10 @@ export const getVATSummary = async ({ startDate, endDate, userId }) => {
  * @param {string} params.endDate - Quarter end date (YYYY-MM-DD)
  * @param {number} params.quarter - Quarter number (1-4)
  * @param {string} params.userId - User/Organization ID (for public endpoint)
- * @param {number} [params.irpfRate=20] - IRPF rate percentage
+ * @param {number} [params.irpfRate] - Optional IRPF rate percentage; omit to use régimen
  * @returns {Promise<Object>} IRPF summary with income, expenses, and payable amounts
  */
-export const getIRPFSummary = async ({ startDate, endDate, quarter, userId, irpfRate = 20 }) => {
+export const getIRPFSummary = async ({ startDate, endDate, quarter, userId, irpfRate }) => {
   try {
     // Use public endpoint if userId is provided, otherwise use authenticated endpoint
     const endpoint = userId
@@ -70,8 +70,10 @@ export const getIRPFSummary = async ({ startDate, endDate, quarter, userId, irpf
       start_date: startDate,
       end_date: endDate,
       quarter,
-      irpf_rate: irpfRate,
     };
+    if (irpfRate != null && irpfRate !== "") {
+      params.irpf_rate = irpfRate;
+    }
     
     if (userId) {
       params.organization_id = userId;

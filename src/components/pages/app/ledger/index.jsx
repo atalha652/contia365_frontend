@@ -9,6 +9,13 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
 import RightPanel from "../common/right-panel";
 // Import ledger API services for listing and deleting entries
 import { listUserLedgers, deleteLedgerEntry, exportUserLedgersPDF } from "../../../../api/apiFunction/ledgerServices";
+import {
+  entryOperationType,
+  matchedModeloNos,
+  operationLabel,
+  withholdingLabel,
+  entryWithholdingType,
+} from "../../../../utils/taxNature";
 
 // This small helper formats numbers as currency for totals
 const formatCurrency = (value) => {
@@ -345,8 +352,8 @@ const Ledger = () => {
               const header = [
                 "Invoice #",
                 "Period",
-                "Modelo ID",
-                "Modelo Confidence",
+                "Modelos",
+                "Tax type",
                 "Supplier",
                 "Customer",
                 "Items Count",
@@ -365,8 +372,8 @@ const Ledger = () => {
                 const cus = e?.invoice_data?.customer?.company_name || "";
                 const inv = e?.invoice_data?.invoice?.invoice_number || "";
                 const period = e?.period || "";
-                const modeloId = e?.ai_modelo_id || "";
-                const modeloConf = e?.ai_modelo_confidence ? (e.ai_modelo_confidence * 100).toFixed(0) + "%" : "";
+                const modeloId = matchedModeloNos(e).join(" ") || e?.ai_modelo_id || "";
+                const modeloConf = `${operationLabel(entryOperationType(e))} / ${withholdingLabel(entryWithholdingType(e))}`;
                 const base = e?.invoice_data?.totals?.base ?? 0;
                 const total = e?.invoice_data?.totals?.total ?? 0;
                 const vatRate = e?.invoice_data?.totals?.VAT_rate ?? "";
@@ -435,8 +442,8 @@ const Ledger = () => {
               </TableHead>
               <TableHead className="whitespace-nowrap">Invoice #</TableHead>
               <TableHead className="whitespace-nowrap">Period</TableHead>
-              <TableHead className="whitespace-nowrap">Modelo ID</TableHead>
-              <TableHead className="whitespace-nowrap">Confidence</TableHead>
+              <TableHead className="whitespace-nowrap">Modelos</TableHead>
+              <TableHead className="whitespace-nowrap">Tax type</TableHead>
               <TableHead className="whitespace-nowrap">Supplier</TableHead>
               <TableHead className="whitespace-nowrap">Customer</TableHead>
               <TableHead className="whitespace-nowrap">Items</TableHead>
@@ -580,25 +587,21 @@ const Ledger = () => {
                 <TableCell>
                   <span className="text-sm text-fg-60 whitespace-nowrap">{e?.period || "-"}</span>
                 </TableCell>
-                {/* Modelo ID badge */}
                 <TableCell>
-                  {e?.ai_modelo_id ? (
-                    <Badge variant="info" className="font-mono">
-                      {e.ai_modelo_id}
-                    </Badge>
+                  {matchedModeloNos(e).length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {matchedModeloNos(e).map((no) => (
+                        <Badge key={no} variant="info" className="font-mono">{no}</Badge>
+                      ))}
+                    </div>
                   ) : (
-                    <span className="text-sm text-fg-60">-</span>
+                    <span className="text-sm text-amber-500">Unclassified</span>
                   )}
                 </TableCell>
-                {/* Confidence percentage in separate column */}
                 <TableCell>
-                  {e?.ai_modelo_confidence ? (
-                    <span className="text-sm text-fg-60">
-                      {(e.ai_modelo_confidence * 100).toFixed(0)}%
-                    </span>
-                  ) : (
-                    <span className="text-sm text-fg-60">-</span>
-                  )}
+                  <span className="text-sm text-fg-60 whitespace-nowrap">
+                    {operationLabel(entryOperationType(e))}
+                  </span>
                 </TableCell>
                 {/* Supplier name with info icon placed on the left */}
                 <TableCell>

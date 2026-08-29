@@ -5,6 +5,7 @@ import { updatePageTitle } from "../utils/titleUtils";
 import { login, loginWithGoogle } from "../api/apiFunction/authServices";
 import { syncOnboardingStatus } from "../api/apiFunction/onboardingServices";
 import { toast } from "react-toastify";
+import Logo from "../components/pages/app/Logo";
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const SignIn = () => {
         syncOnboardingStatus(response.data);
         toast.success("Login successful! Redirecting...");
         if (response.data?.role === "admin") {
-          navigate("/app/users");
+          navigate("/app/dashboard");
         } else if (response.data?.current_step === "completed") {
           navigate("/app/dashboard");
         } else {
@@ -69,11 +70,7 @@ const SignIn = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-          </div>
+          <Logo className="w-16 h-16 mx-auto mb-4" />
           <h2 className="text-3xl font-bold text-slate-800">Welcome to Contia 365</h2>
           <p className="mt-2 text-sm text-slate-500">Sign in to your account to continue</p>
         </div>

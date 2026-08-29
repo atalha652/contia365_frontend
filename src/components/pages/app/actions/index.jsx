@@ -87,6 +87,7 @@ const Actions = () => {
       files: Array.isArray(v.files) ? v.files : [],
       files_count: typeof v.files_count === "number" ? v.files_count : (Array.isArray(v.files) ? v.files.length : 0),
       ocr_status: v.OCR || v.ocr_status || undefined,
+      source: v.source || "",
     }));
   }, [vouchers]);
 
@@ -101,7 +102,8 @@ const Actions = () => {
     const search = searchQuery.toLowerCase();
     const matchesSearch = `${v.id} ${v.title} ${v.category}`.toLowerCase().includes(search);
     const matchesStatus = statusFilter === "All Status" ? true : String(v.ocr_status || "").toUpperCase() === statusFilter.toUpperCase();
-    return matchesSearch && matchesStatus;
+    const isManual = v.source === "manual" || String(v.ocr_status || "").toLowerCase() === "not_applicable";
+    return matchesSearch && matchesStatus && !isManual;
   });
 
   // Render date-time values consistently
@@ -149,7 +151,7 @@ const Actions = () => {
             <div>
               {/* Execution tab header */}
               <h1 className="text-2xl font-semibold text-fg-40">Execution</h1>
-              <p className="text-sm text-fg-60 mt-1">Approved vouchers and OCR status overview.</p>
+              <p className="text-sm text-fg-60 mt-1">Approved scans. Prefer Run OCR on Expenses before approval; use this page if OCR was skipped.</p>
             </div>
             <div className="flex items-center space-x-3" />
           </div>
@@ -194,7 +196,7 @@ const Actions = () => {
                 // Filter out vouchers that already have "done" status
                 const vouchersToProcess = selectedIds.filter(id => {
                   const voucher = normalized.find(v => v.id === id);
-                  return voucher && voucher.ocr_status !== "done";
+                  return voucher && voucher.ocr_status !== "done" && voucher.ocr_status !== "not_applicable" && voucher.source !== "manual";
                 });
                 
                 if (vouchersToProcess.length === 0) {
@@ -340,7 +342,12 @@ const Actions = () => {
                   {/* Per-row OCR button: disable if OCR status is "done" or if currently processing */}
                   <Button
                     variant="primary"
-                    disabled={rowSendingIds.includes(item.id) || item.ocr_status === "done"}
+                    disabled={
+                      rowSendingIds.includes(item.id) ||
+                      item.ocr_status === "not_applicable" ||
+                      item.source === "manual" ||
+                      item.ocr_status === "processing"
+                    }
                     onClick={async () => {
                       if (!userId) return;
                       try {
@@ -357,7 +364,18 @@ const Actions = () => {
                       }
                     }}
                   >
-                    {item.ocr_status === "done" ? "OCR Done" : "Run OCR"}
+                    {rowSendingIds.includes(item.id) || item.ocr_status === "processing" ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        OCR…
+                      </span>
+                    ) : item.ocr_status === "done" ? (
+                      "OCR Done"
+                    ) : item.ocr_status === "failed" || item.ocr_status === "partial" ? (
+                      "Retry OCR"
+                    ) : (
+                      "Run OCR"
+                    )}
                   </Button>
                 </TableCell>
               </TableRow>

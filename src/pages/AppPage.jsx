@@ -25,7 +25,7 @@ const AppPage = () => {
 
   useEffect(() => {
     if (isAdmin && !isAdminAppPath(location.pathname)) {
-      navigate("/app/users", { replace: true });
+      navigate("/app/dashboard", { replace: true });
     }
   }, [isAdmin, location.pathname, navigate]);
 
@@ -207,11 +207,8 @@ const AppPage = () => {
   useEffect(() => {
     const path = location.pathname.toLowerCase();
     let label = "App";
-    if (path.includes("/app/dashboard")) label = "Dashboard";
+    if (path.includes("/app/dashboard")) label = isAdmin ? "Admin Dashboard" : "Dashboard";
     else if (path.includes("/app/expenses") || path.includes("/app/vouchers") || path.includes("/app/expences")) label = "Expenses";
-    else if (path.includes("/app/requests")) label = "Requests";
-    // Update tab name and route: Actions -> Execution
-    else if (path.includes("/app/execution")) label = "Execution";
     else if (path.includes("/app/bank-reconciliation")) label = "Bank Reconciliation";
     else if (path.includes("/app/tax-filings/cases")) label = "Tax Filings";
     else if (path.includes("/app/tax-filings")) label = "Tax Filing & Compliance";
@@ -224,7 +221,7 @@ const AppPage = () => {
     else if (path.includes("/app/settings/compliance")) label = "Certificate Settings";
     setHeaderTitle(label);
     updatePageTitle(label);
-  }, [location]);
+  }, [location, isAdmin]);
 
   const context = {
     invoices,

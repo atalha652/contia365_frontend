@@ -10,7 +10,6 @@ import {
   KeyRound,
   FilePlus,
   ShieldCheck,
-  Settings,
   Inbox,
   UserCog,
   Users,
@@ -58,7 +57,6 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
         { to: "/app/ledger", label: "Ledger", icon: BookOpen },
         { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
         { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
-        { to: "/app/settings/compliance", label: "Certificate", icon: Settings },
       ];
   if (!isAdmin && canViewSalesWaitlist(user)) {
     items.splice(items.length - 1, 0, {

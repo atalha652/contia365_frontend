@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Download, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "react-toastify";
 import { Button, Badge } from "../../../ui";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "../../../ui/Modal";
@@ -75,8 +75,6 @@ const TaxFilingDetail = () => {
   const [action, setAction] = useState(null);
   const [modeloId, setModeloId] = useState("");
   const [nif, setNif] = useState("");
-  const [certPassword, setCertPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [downloadingReceipt, setDownloadingReceipt] = useState(false);
 
   const loadFiling = async () => {
@@ -129,7 +127,6 @@ const TaxFilingDetail = () => {
   );
   const liveReady = !needsPercipients || legallyComplete;
   const liveSubmit = action === "submit" && canLiveSubmit;
-  const envCertPassword = Boolean(filing?.cert_password_from_env);
   const aeatResult = filing?.aeat_result && typeof filing.aeat_result === "object"
     ? filing.aeat_result
     : null;
@@ -146,8 +143,6 @@ const TaxFilingDetail = () => {
     if (busy) return;
     setAction(null);
     setComment("");
-    setCertPassword("");
-    setShowPassword(false);
   };
 
   const runAction = async () => {
@@ -166,14 +161,9 @@ const TaxFilingDetail = () => {
           toast.error("Add percipient records and recalculate before live submit.");
           return;
         }
-        if (!certPassword.trim() && !envCertPassword) {
-          toast.error("Certificate password is required");
-          return;
-        }
         updated = await submitTaxFiling(id, {
           comment,
           test_mode: false,
-          cert_password: certPassword,
         });
       } else if (action === "submit_test") {
         updated = await submitTaxFiling(id, { comment, test_mode: true });
@@ -190,8 +180,6 @@ const TaxFilingDetail = () => {
       setFiling(refreshed || updated);
       setAction(null);
       setComment("");
-      setCertPassword("");
-      setShowPassword(false);
       const aeatMessage = (refreshed || updated)?.aeat_result?.message
         || (refreshed || updated)?.aeat_result?.description;
       toast.success(aeatMessage || "Filing updated");
@@ -445,43 +433,6 @@ const TaxFilingDetail = () => {
                 This builds the official Modelo {modeloNo} file and sends it to AEAT. Status will become
                 ACCEPTED or REJECTED from the AEAT response, not from a manual button.
               </p>
-              <div>
-                <label className="block text-xs font-medium text-fg-60 mb-1.5">
-                  Certificate password
-                  {!envCertPassword && <span className="text-red-400"> *</span>}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={certPassword}
-                    onChange={(e) => setCertPassword(e.target.value)}
-                    placeholder={
-                      envCertPassword
-                        ? "Leave blank to use CERT_PASSWORD from the server .env"
-                        : "Enter your .p12 password"
-                    }
-                    autoComplete="off"
-                    className="w-full px-3 py-2.5 pr-10 text-sm bg-bg-60 border border-bd-50 rounded-lg text-fg-40 placeholder:text-fg-60 focus:outline-none focus:ring-2 focus:ring-ac-02"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (certPassword.trim() || envCertPassword) && !busy) runAction();
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((visible) => !visible)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-60 hover:text-fg-40"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-fg-60 mt-1">
-                  Used in-memory only — never stored.
-                  {envCertPassword
-                    ? " The enrolled cert password is set in the server .env (CERT_PASSWORD). Typing here overrides it."
-                    : ""}
-                </p>
-              </div>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -510,7 +461,7 @@ const TaxFilingDetail = () => {
           <Button
             variant="primary"
             onClick={runAction}
-            disabled={busy || (liveSubmit && !certPassword.trim() && !envCertPassword)}
+            disabled={busy}
           >
             {busy ? "Saving…" : liveSubmit ? "Confirm & submit" : "Confirm"}
           </Button>

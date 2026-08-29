@@ -16,6 +16,9 @@ import {
   saveCensusProfile,
   updateCensusProfile,
   canonicalizeUserType,
+  saveCompanyDetails,
+  saveRepresentative,
+  confirmAeatConnect,
 } from "../api/apiFunction/onboardingServices";
 import { getMyWaitlist, joinWaitlist } from "../api/apiFunction/waitlistServices";
 
@@ -107,6 +110,42 @@ const EMPTY_FISCAL_FORM = {
   province: "",
 };
 
+const EMPTY_COMPANY_FORM = {
+  legal_name: "",
+  cif: "",
+  company_type: "",
+  address_line: "",
+  postal_code: "",
+  city: "",
+  province: "",
+};
+
+const EMPTY_REP_FORM = {
+  full_name: "",
+  dni_nie: "",
+  role: "",
+};
+
+const COMPANY_TYPES = [
+  { value: "S.L.", label: "S.L. — Sociedad Limitada" },
+  { value: "S.A.", label: "S.A. — Sociedad Anónima" },
+  { value: "S.L.U.", label: "S.L.U. — Sociedad Limitada Unipersonal" },
+  { value: "S.C.P.", label: "S.C.P. — Sociedad Civil Profesional" },
+  { value: "C.B.", label: "C.B. — Comunidad de Bienes" },
+  { value: "S.L.L.", label: "S.L.L. — Sociedad Laboral Limitada" },
+  { value: "S.A.L.", label: "S.A.L. — Sociedad Laboral Anónima" },
+  { value: "Cooperativa", label: "Cooperativa" },
+  { value: "Asociación", label: "Asociación" },
+  { value: "Fundación", label: "Fundación" },
+  { value: "Other", label: "Other" },
+];
+
+const REP_ROLES = [
+  { value: "administrador", label: "Administrador" },
+  { value: "representante_legal", label: "Representante Legal" },
+  { value: "apoderado", label: "Apoderado" },
+];
+
 const VAT_REGIMES = [
   { value: "general", label: "General" },
   { value: "simplified", label: "Simplified" },
@@ -159,6 +198,11 @@ const Onboarding = () => {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState(null);
   const [censusRecordId, setCensusRecordId] = useState(null);
   const [fiscalForm, setFiscalForm] = useState(EMPTY_FISCAL_FORM);
+
+  // Business onboarding state
+  const [companyForm, setCompanyForm] = useState(EMPTY_COMPANY_FORM);
+  const [repForm, setRepForm] = useState(EMPTY_REP_FORM);
+  const [aeatConnecting, setAeatConnecting] = useState(false);
 
   const updateFiscalField = (field, value) => {
     setFiscalForm((prev) => ({ ...prev, [field]: value }));
@@ -299,6 +343,11 @@ const Onboarding = () => {
       loadCanonicalFiscalProfile();
       return;
     }
+    // Business steps — close person modal if open
+    if (["company_details", "representative", "aeat_connection"].includes(currentStep)) {
+      setShowAEATModal(false);
+      return;
+    }
     setShowAEATModal(false);
   }, [onboardingStatus?.current_step, navigate, fetchUserTypes, loadCanonicalFiscalProfile]);
 
@@ -424,6 +473,108 @@ const Onboarding = () => {
       setIsLoading(false);
     }
   };
+
+  // ── Business step handlers ───────────────────────────────────────────────
+
+  const handleCompanyDetailsSave = async () => {
+    if (!companyForm.legal_name.trim()) {
+      toast.error("Legal name is required.");
+      return;
+    }
+    if (!companyForm.cif.trim()) {
+      toast.error("CIF is required.");
+      return;
+    }
+    if (!companyForm.company_type) {
+      toast.error("Company type is required.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const payload = {
+        legal_name: companyForm.legal_name.trim(),
+        cif: companyForm.cif.trim().toUpperCase(),
+        company_type: companyForm.company_type,
+        tax_address: {
+          address_line: companyForm.address_line.trim() || null,
+          postal_code: companyForm.postal_code.trim() || null,
+          city: companyForm.city.trim() || null,
+          province: companyForm.province.trim() || null,
+        },
+      };
+      const response = await saveCompanyDetails(payload);
+      if (response?.status === 200 || response?.status === 201) {
+        toast.success("Company details saved.");
+        await refreshOnboardingStatus();
+      } else {
+        const detail = response?.data?.detail;
+        toast.error(typeof detail === "string" ? detail : "Failed to save company details.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRepresentativeSave = async () => {
+    if (!repForm.full_name.trim()) {
+      toast.error("Full name is required.");
+      return;
+    }
+    if (!repForm.dni_nie.trim()) {
+      toast.error("DNI/NIE is required.");
+      return;
+    }
+    if (!repForm.role) {
+      toast.error("Role is required.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await saveRepresentative({
+        full_name: repForm.full_name.trim(),
+        dni_nie: repForm.dni_nie.trim().toUpperCase(),
+        role: repForm.role,
+      });
+      if (response?.status === 200 || response?.status === 201) {
+        toast.success("Representative saved.");
+        await refreshOnboardingStatus();
+      } else {
+        const detail = response?.data?.detail;
+        toast.error(typeof detail === "string" ? detail : "Failed to save representative.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAeatConnect = async () => {
+    const repNif = repForm.dni_nie.trim().toUpperCase();
+    if (!repNif) {
+      toast.error("Representative DNI/NIE is required to confirm AEAT connection.");
+      return;
+    }
+    setAeatConnecting(true);
+    try {
+      const response = await confirmAeatConnect(repNif);
+      if (response?.status === 200 || response?.status === 201) {
+        toast.success("AEAT connection confirmed. Onboarding complete.");
+        await refreshOnboardingStatus();
+      } else {
+        const detail = response?.data?.detail;
+        toast.error(typeof detail === "string" ? detail : "Failed to confirm AEAT connection.");
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setAeatConnecting(false);
+    }
+  };
+
+  // ── File upload (person fiscal profile) ─────────────────────────────────
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -874,6 +1025,220 @@ const Onboarding = () => {
     );
   }
 
+  // ── Business screen: Company Details ────────────────────────────────────
+  if (onboardingStatus?.current_step === "company_details") {
+    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+    const labelCls = "block text-xs font-medium text-slate-600 mb-1.5";
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4 text-white">
+              {TYPE_ICONS.business}
+            </div>
+            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 3 of 5</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Company Details</h1>
+            <p className="text-slate-500 text-sm">Enter your company's legal information. The CIF will be used for all AEAT submissions.</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Legal name (Razón social) <span className="text-red-500">*</span></label>
+                <input className={inputCls} value={companyForm.legal_name}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, legal_name: e.target.value }))}
+                  placeholder="e.g. Empresa Ejemplo S.L." />
+              </div>
+              <div>
+                <label className={labelCls}>CIF <span className="text-red-500">*</span></label>
+                <input className={inputCls} value={companyForm.cif}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, cif: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. B12345678" maxLength={9} />
+              </div>
+              <div>
+                <label className={labelCls}>Company type <span className="text-red-500">*</span></label>
+                <select className={inputCls} value={companyForm.company_type}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, company_type: e.target.value }))}>
+                  <option value="">Select type</option>
+                  {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2 pt-2 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 mt-2">Tax Address — Domicilio Fiscal</p>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Street address</label>
+                <input className={inputCls} value={companyForm.address_line}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, address_line: e.target.value }))}
+                  placeholder="Calle, número, piso..." />
+              </div>
+              <div>
+                <label className={labelCls}>Postal code</label>
+                <input className={inputCls} value={companyForm.postal_code}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, postal_code: e.target.value }))}
+                  placeholder="28001" />
+              </div>
+              <div>
+                <label className={labelCls}>City</label>
+                <input className={inputCls} value={companyForm.city}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, city: e.target.value }))}
+                  placeholder="Madrid" />
+              </div>
+              <div>
+                <label className={labelCls}>Province</label>
+                <input className={inputCls} value={companyForm.province}
+                  onChange={(e) => setCompanyForm((p) => ({ ...p, province: e.target.value }))}
+                  placeholder="Madrid" />
+              </div>
+            </div>
+            <div className="flex justify-end mt-6">
+              <button type="button" onClick={handleCompanyDetailsSave} disabled={isLoading}
+                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
+                {isLoading ? "Saving..." : "Continue →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Business screen: Authorized Representative ───────────────────────────
+  if (onboardingStatus?.current_step === "representative") {
+    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+    const labelCls = "block text-xs font-medium text-slate-600 mb-1.5";
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 4 of 5</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Authorized Representative</h1>
+            <p className="text-slate-500 text-sm max-w-md mx-auto">
+              In Spain, a company needs an authorized person to access AEAT — usually the
+              administrator or registered legal representative. Only one person is needed.
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+            <div>
+              <label className={labelCls}>Full name <span className="text-red-500">*</span></label>
+              <input className={inputCls} value={repForm.full_name}
+                onChange={(e) => setRepForm((p) => ({ ...p, full_name: e.target.value }))}
+                placeholder="Name and surname(s)" />
+            </div>
+            <div>
+              <label className={labelCls}>DNI / NIE <span className="text-red-500">*</span></label>
+              <input className={inputCls} value={repForm.dni_nie}
+                onChange={(e) => setRepForm((p) => ({ ...p, dni_nie: e.target.value.toUpperCase() }))}
+                placeholder="e.g. 12345678Z or X1234567L" maxLength={9} />
+            </div>
+            <div>
+              <label className={labelCls}>Role <span className="text-red-500">*</span></label>
+              <select className={inputCls} value={repForm.role}
+                onChange={(e) => setRepForm((p) => ({ ...p, role: e.target.value }))}>
+                <option value="">Select role</option>
+                {REP_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+              <strong>Note:</strong> This person will authenticate with AEAT in the next step using
+              their digital certificate. Their DNI/NIE is recorded as the authorized contact for this company.
+            </div>
+            <div className="flex justify-end pt-2">
+              <button type="button" onClick={handleRepresentativeSave} disabled={isLoading}
+                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
+                {isLoading ? "Saving..." : "Continue →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Business screen: AEAT Connection ────────────────────────────────────
+  if (onboardingStatus?.current_step === "aeat_connection") {
+    const repNif = repForm.dni_nie?.trim().toUpperCase() || "—";
+    const contiaNif = import.meta.env.VITE_CONTIA_NIF || "B00000000";
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 5 of 5</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Connect to AEAT</h1>
+            <p className="text-slate-500 text-sm max-w-md mx-auto">
+              The authorized representative needs to grant Contia365 permission to file taxes
+              on behalf of your company. This is a one-time setup.
+            </p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                Steps to complete on AEAT portal
+              </p>
+              <ol className="space-y-2">
+                {[
+                  "Click the button below to open the AEAT portal in a new tab",
+                  "Log in with the representative's digital certificate or Cl@ve",
+                  "Go to: Representación → Otorgar apoderamiento",
+                  `Enter Contia365's NIF: ${contiaNif}`,
+                  "Select the tax procedures for your company (G303, G130, G111, etc.)",
+                  "Save and return to this page",
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
+                    <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#027570]/10 text-[#027570] text-xs font-bold flex items-center justify-center">
+                      {i + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="flex items-center justify-between bg-[#027570]/5 border border-[#027570]/20 rounded-xl px-4 py-3">
+              <span className="text-xs font-medium text-slate-600">Contia365 NIF (who to authorize)</span>
+              <span className="text-sm font-bold text-[#027570] font-mono">{contiaNif}</span>
+            </div>
+
+            <a href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/G322.shtml"
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#027570] text-[#027570] font-semibold rounded-xl hover:bg-[#027570]/5 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Open AEAT Portal
+            </a>
+
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-xs text-slate-500 mb-3 text-center">
+                Once you have granted the authorization on AEAT, click below to complete onboarding.
+              </p>
+              <button type="button" onClick={handleAeatConnect} disabled={aeatConnecting}
+                className="w-full px-6 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
+                {aeatConnecting ? "Confirming..." : "I've completed the authorization on AEAT ✓"}
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 text-center">
+              You will not need to repeat this step unless AEAT requires re-authentication.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (whiteLabelInterest) {
     let email = "";
     try {
@@ -881,7 +1246,6 @@ const Onboarding = () => {
     } catch {
       email = "";
     }
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
@@ -998,7 +1362,6 @@ const Onboarding = () => {
                   </p>
                 </div>
               </div>
-
               <div className="flex items-center justify-center mb-4">
                 <div className="flex items-center space-x-3">
                   {[1, 2, 3, 4].map((step) => (
@@ -1021,7 +1384,6 @@ const Onboarding = () => {
                   ))}
                 </div>
               </div>
-
               {renderAEATStep()}
             </div>
           </ModalBody>

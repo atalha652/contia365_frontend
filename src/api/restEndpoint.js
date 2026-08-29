@@ -65,9 +65,5 @@ export const ADMIN_URL = `${SERVER_PATH}/api/admin`;
 // Base URL for invoice lifecycle (create, issue, cancel, view)
 export const INVOICE_URL = `${SERVER_PATH}/api/invoices`;
 
-// Certificate End Point
-// POST /api/auth/certificate — upload .p12 digital certificate
-export const CERTIFICATE_URL = `${SERVER_PATH}/api/auth/certificate`;
-
 
 

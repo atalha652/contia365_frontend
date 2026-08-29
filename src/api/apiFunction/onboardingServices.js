@@ -52,6 +52,10 @@ export const syncOnboardingStatus = (status) => {
     onboarding_completed: status.onboarding_completed,
     fiscal_profile_completed: status.fiscal_profile_completed,
     census_data_uploaded: status.census_data_uploaded,
+    // Business flags
+    business_profile_completed: status.business_profile_completed,
+    representative_completed: status.representative_completed,
+    aeat_connected: status.aeat_connected,
     next_action: status.next_action,
   };
   localStorage.setItem("user", JSON.stringify(merged));
@@ -160,6 +164,62 @@ export const updateCensusProfile = async (recordId, payload) => {
     return response;
   } catch (err) {
     console.error("Update census profile error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Business onboarding API calls
+// ---------------------------------------------------------------------------
+
+export const saveCompanyDetails = async (payload) => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/business/company-details`,
+      payload,
+    });
+    return response;
+  } catch (err) {
+    console.error("Save company details error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const saveRepresentative = async (payload) => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/business/representative`,
+      payload,
+    });
+    return response;
+  } catch (err) {
+    console.error("Save representative error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const confirmAeatConnect = async (representativeNif) => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/business/aeat-connect`,
+      payload: { representative_nif: representativeNif },
+    });
+    return response;
+  } catch (err) {
+    console.error("AEAT connect error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const aeatSync = async () => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/aeat-sync`,
+      payload: {},
+    });
+    return response;
+  } catch (err) {
+    console.error("AEAT sync error:", err);
     return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
   }
 };

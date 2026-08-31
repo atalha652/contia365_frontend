@@ -56,7 +56,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
         { to: "/app/invoices", label: "Invoices", icon: FilePlus },
         { to: "/app/ledger", label: "Ledger", icon: BookOpen },
         { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
-        { to: "/app/compliance", label: "Chain Integrity", icon: ShieldCheck },
+        { to: "/app/settings/aeat", label: "AEAT Representation", icon: ShieldCheck },
       ];
   if (!isAdmin && canViewSalesWaitlist(user)) {
     items.splice(items.length - 1, 0, {

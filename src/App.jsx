@@ -44,7 +44,9 @@ import {
 import InvoiceList from "./components/pages/app/invoices/InvoiceList";
 import InvoiceEditor from "./components/pages/app/invoices/InvoiceEditor";
 import InvoiceView from "./components/pages/app/invoices/InvoiceView";
-import Compliance from "./components/pages/app/Compliance";
+import AeatSettings from "./components/pages/app/tax/AeatSettings";
+
+
 import {
   getOnboardingStatus,
   syncOnboardingStatus,
@@ -152,7 +154,9 @@ function App() {
               <Route path="invoices" element={<InvoiceList />} />
               <Route path="invoices/:invoiceId" element={<InvoiceEditor />} />
               <Route path="invoices/view/:invoiceId" element={<InvoiceView />} />
-              <Route path="compliance" element={<Compliance />} />
+              <Route path="settings/aeat" element={<AeatSettings />} />
+              <Route path="settings/compliance" element={<AeatSettings />} />
+
               {/* Removed routes: bank-reconciliation, expences, payroll */}
             </Route>
           </Routes>

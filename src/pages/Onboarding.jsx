@@ -19,6 +19,8 @@ import {
   saveCompanyDetails,
   saveRepresentative,
   confirmAeatConnect,
+  uploadPersonCertificate,
+  confirmPersonAeatConnect,
 } from "../api/apiFunction/onboardingServices";
 import { getMyWaitlist, joinWaitlist } from "../api/apiFunction/waitlistServices";
 
@@ -191,7 +193,8 @@ const Onboarding = () => {
   const [joinedInterests, setJoinedInterests] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAEATModal, setShowAEATModal] = useState(false);
-  const [aeatStep, setAeatStep] = useState(1);
+  const [aeatStep, setAeatStep] = useState(0);
+  const [aeatConsent, setAeatConsent] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [censusDocuments, setCensusDocuments] = useState([]);
@@ -203,6 +206,12 @@ const Onboarding = () => {
   const [companyForm, setCompanyForm] = useState(EMPTY_COMPANY_FORM);
   const [repForm, setRepForm] = useState(EMPTY_REP_FORM);
   const [aeatConnecting, setAeatConnecting] = useState(false);
+  const [certFile, setCertFile] = useState(null);
+  const [certPassword, setCertPassword] = useState("");
+  const [certUploading, setCertUploading] = useState(false);
+  const [certInfo, setCertInfo] = useState(null);
+  const [personAeatNif, setPersonAeatNif] = useState("");
+  const [personAeatConnecting, setPersonAeatConnecting] = useState(false);
 
   const updateFiscalField = (field, value) => {
     setFiscalForm((prev) => ({ ...prev, [field]: value }));
@@ -287,7 +296,7 @@ const Onboarding = () => {
     const record = await getMyFiscalProfile();
     if (record) {
       applyCensusRecord(record);
-      setAeatStep(4);
+      setAeatStep(5);
     }
     return record;
   }, [applyCensusRecord]);
@@ -343,6 +352,18 @@ const Onboarding = () => {
       loadCanonicalFiscalProfile();
       return;
     }
+    // Certificate upload step — open modal at step 6
+    if (currentStep === "certificate_upload") {
+      setShowAEATModal(true);
+      setAeatStep(6);
+      return;
+    }
+    // Person AEAT apoderamiento step — open modal at step 7
+    if (currentStep === "person_aeat_connection") {
+      setShowAEATModal(true);
+      setAeatStep(7);
+      return;
+    }
     // Business steps — close person modal if open
     if (["company_details", "representative", "aeat_connection"].includes(currentStep)) {
       setShowAEATModal(false);
@@ -391,7 +412,8 @@ const Onboarding = () => {
 
   useEffect(() => {
     if (!showAEATModal) {
-      setAeatStep(1);
+      setAeatStep(0);
+      setAeatConsent(false);
     }
   }, [showAEATModal]);
 
@@ -574,6 +596,68 @@ const Onboarding = () => {
     }
   };
 
+  // ── Person certificate upload ────────────────────────────────────────────
+
+  const handleCertificateUpload = async () => {
+    if (!certFile) {
+      toast.error("Please select a .p12 or .pfx certificate file.");
+      return;
+    }
+    if (!certPassword.trim()) {
+      toast.error("Please enter the certificate password.");
+      return;
+    }
+    setCertUploading(true);
+    try {
+      const response = await uploadPersonCertificate(certFile, certPassword);
+      if (response?.status === 200 || response?.status === 201) {
+        setCertInfo(response.data?.certificate || null);
+        toast.success("Certificate uploaded and verified successfully.");
+        setCertPassword(""); // clear password from state immediately
+        await refreshOnboardingStatus();
+      } else {
+        const detail = response?.data?.detail;
+        toast.error(
+          typeof detail === "string"
+            ? detail
+            : "Could not upload the certificate. Check the file and password."
+        );
+      }
+    } catch {
+      toast.error("Upload failed. Please check your connection and try again.");
+    } finally {
+      setCertUploading(false);
+    }
+  };
+
+  // ── Person AEAT apoderamiento confirm ────────────────────────────────────
+
+  const handlePersonAeatConnect = async () => {
+    if (!personAeatNif.trim()) {
+      toast.error("Please enter your NIF / NIE.");
+      return;
+    }
+    setPersonAeatConnecting(true);
+    try {
+      const response = await confirmPersonAeatConnect(personAeatNif.trim().toUpperCase());
+      if (response?.status === 200 || response?.status === 201) {
+        toast.success("AEAT authorization confirmed. Onboarding complete.");
+        await refreshOnboardingStatus();
+      } else {
+        const detail = response?.data?.detail;
+        toast.error(
+          typeof detail === "string"
+            ? detail
+            : "Could not confirm AEAT authorization. Please try again."
+        );
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setPersonAeatConnecting(false);
+    }
+  };
+
   // ── File upload (person fiscal profile) ─────────────────────────────────
 
   const handleFileUpload = async (event) => {
@@ -599,7 +683,7 @@ const Onboarding = () => {
         const canonicalProfile = await getMyFiscalProfile();
         if (canonicalProfile) applyCensusRecord(canonicalProfile);
         toast.success("Census document uploaded. Review and confirm your fiscal details.");
-        setAeatStep(4);
+        setAeatStep(5);
       } else if (response?.status === 422) {
         const detail = response?.data?.detail;
         const isAIError = typeof detail === "string" && detail.includes("AI extraction failed");
@@ -644,12 +728,359 @@ const Onboarding = () => {
   };
 
   const renderAEATStep = () => {
+    // ── Step 0: Explanation & Authorization Consent ──────────────────────
+    if (aeatStep === 0) {
+      return (
+        <div className="space-y-5">
+          {/* Icon */}
+          <div className="flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="text-center">
+            <h4 className="text-base font-semibold text-slate-800">Step 1: Authorize Contia365</h4>
+            <p className="text-sm text-slate-500 mt-1">
+              Before connecting to AEAT, please read and accept how Contia365 will act on your behalf.
+            </p>
+          </div>
+
+          {/* Explanation card */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">How it works</p>
+            <ul className="space-y-2.5">
+              {[
+                "You remain the taxpayer at all times — Contia365 is not a separate AEAT taxpayer.",
+                "Contia365 acts as your authorized representative (similar to a gestor) before AEAT.",
+                "We will submit Modelo 303 and other tax filings in your name and on your behalf.",
+                "You can revoke this authorization at any time from your AEAT portal.",
+              ].map((line, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Flow diagram */}
+          <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-xl px-4 py-3">
+            <span className="px-2.5 py-1 rounded-lg bg-[#027570]/10 text-[#027570] font-semibold">You (taxpayer)</span>
+            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="px-2.5 py-1 rounded-lg bg-[#027570]/10 text-[#027570] font-semibold">Contia365</span>
+            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold">AEAT</span>
+          </div>
+
+          {/* Consent checkbox */}
+          <label className="flex items-start gap-3 cursor-pointer select-none group">
+            <div className="mt-0.5 relative">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={aeatConsent}
+                onChange={(e) => setAeatConsent(e.target.checked)}
+              />
+              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors duration-150 ${
+                aeatConsent ? "bg-[#027570] border-[#027570]" : "border-slate-300 bg-white group-hover:border-[#027570]"
+              }`}>
+                {aeatConsent && (
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            </div>
+            <span className="text-sm text-slate-700 leading-snug">
+              I authorize <span className="font-semibold text-slate-800">Contia365</span> to act as my
+              authorized representative before AEAT and to submit tax filings on my behalf.
+            </span>
+          </label>
+
+          {/* Continue button */}
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              disabled={!aeatConsent}
+              onClick={() => setAeatStep(1)}
+              className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              I Agree, Continue →
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Step 6: Digital Certificate Upload ──────────────────────────────────
+    if (aeatStep === 6) {
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+      return (
+        <div className="space-y-4">
+          {/* Icon */}
+          <div className="flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="text-center">
+            <h4 className="text-base font-semibold text-slate-800">Step 6: Upload Digital Certificate</h4>
+            <p className="text-sm text-slate-500 mt-1">
+              Upload your FNMT digital certificate so Contia365 can sign and submit tax filings on your behalf.
+            </p>
+          </div>
+
+          {/* Info box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">What you need</p>
+            <ul className="space-y-1.5">
+              {[
+                "Your FNMT digital certificate file (.p12 or .pfx format).",
+                "The password you set when you downloaded the certificate from AEAT.",
+                "Your certificate is encrypted on our servers — never stored in plain text.",
+              ].map((line, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Certificate already uploaded indicator */}
+          {certInfo && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-3">
+              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">Certificate verified</p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Valid until: {certInfo.valid_until ? new Date(certInfo.valid_until).toLocaleDateString() : "—"}
+                </p>
+                {certInfo.subject && (
+                  <p className="text-xs text-emerald-600 truncate max-w-xs">{certInfo.subject}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* File upload drop zone */}
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center hover:border-[#027570] transition-colors duration-200">
+            <input
+              type="file"
+              accept=".p12,.pfx"
+              onChange={(e) => setCertFile(e.target.files[0] || null)}
+              className="hidden"
+              id="cert-upload"
+              disabled={certUploading}
+            />
+            <label htmlFor="cert-upload" className={`cursor-pointer ${certUploading ? "pointer-events-none" : ""}`}>
+              <div className="flex flex-col items-center gap-2">
+                {certUploading ? (
+                  <svg className="animate-spin w-9 h-9 text-[#027570]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-9 h-9 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                )}
+                <p className="text-sm font-medium text-slate-700">
+                  {certUploading
+                    ? "Uploading..."
+                    : certFile
+                      ? certFile.name
+                      : "Click to select your .p12 / .pfx file"}
+                </p>
+                <p className="text-xs text-slate-400">Max 2 MB</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Selected file indicator */}
+          {certFile && !certUploading && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#027570]/10 rounded-lg flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#027570]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-slate-700 truncate">{certFile.name}</p>
+            </div>
+          )}
+
+          {/* Password input */}
+          <div>
+            <label className={labelClass}>
+              Certificate password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              className={inputClass}
+              value={certPassword}
+              onChange={(e) => setCertPassword(e.target.value)}
+              placeholder="Password used when downloading the certificate"
+              disabled={certUploading}
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              The password is used only to verify the certificate and is never stored.
+            </p>
+          </div>
+
+          {/* Upload button */}
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={handleCertificateUpload}
+              disabled={certUploading || !certFile || !certPassword.trim()}
+              className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              {certUploading ? "Uploading & verifying..." : "Upload Certificate →"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Step 7: AEAT Apoderamiento (Individual) ──────────────────────────────
+    if (aeatStep === 7) {
+      const contiaNif = import.meta.env.VITE_CONTIA_NIF || "B00000000";
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const labelClass = "block text-xs font-medium text-slate-600 mb-1";
+      return (
+        <div className="space-y-4">
+          {/* Icon */}
+          <div className="flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="text-center">
+            <h4 className="text-base font-semibold text-slate-800">Step 7: Authorize on AEAT Portal</h4>
+            <p className="text-sm text-slate-500 mt-1">
+              Grant Contia365 official representation (apoderamiento) on the AEAT portal. This is a one-time step.
+            </p>
+          </div>
+
+          {/* Steps guide */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+              Steps to complete on AEAT portal
+            </p>
+            <ol className="space-y-2">
+              {[
+                "Click the button below to open the AEAT portal in a new tab.",
+                "Log in using your digital certificate (the one you just uploaded).",
+                "Go to: Representación → Otorgar apoderamiento",
+                `Enter Contia365's NIF: ${contiaNif}`,
+                "Select procedures: G303 (IVA), G130 (IRPF), and any others that apply.",
+                "Confirm and save — then return to this page.",
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
+                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#027570]/10 text-[#027570] text-xs font-bold flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Contia NIF badge */}
+          <div className="flex items-center justify-between bg-[#027570]/5 border border-[#027570]/20 rounded-xl px-4 py-3">
+            <span className="text-xs font-medium text-slate-600">Contia365 NIF (who to authorize)</span>
+            <span className="text-sm font-bold text-[#027570] font-mono">{contiaNif}</span>
+          </div>
+
+          {/* Open AEAT portal button */}
+          <a
+            href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZZ08.shtml"
+            target="_blank"
+
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#027570] text-[#027570] font-semibold rounded-xl hover:bg-[#027570]/5 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Open AEAT Portal
+          </a>
+
+          {/* Divider */}
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-xs text-slate-500 mb-3 text-center">
+              Once you have granted the authorization on AEAT, enter your NIF/NIE and confirm below.
+            </p>
+
+            {/* NIF/NIE input */}
+            <div className="mb-3">
+              <label className={labelClass}>
+                Your NIF / NIE <span className="text-red-500">*</span>
+              </label>
+              <input
+                className={inputClass}
+                value={personAeatNif}
+                onChange={(e) => setPersonAeatNif(e.target.value.toUpperCase())}
+                placeholder="e.g. 12345678Z or X1234567L"
+                maxLength={9}
+                disabled={personAeatConnecting}
+              />
+            </div>
+
+            {/* Confirm button */}
+            <button
+              type="button"
+              onClick={handlePersonAeatConnect}
+              disabled={personAeatConnecting || !personAeatNif.trim()}
+              className="w-full px-6 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              {personAeatConnecting
+                ? "Confirming..."
+                : "I've completed the authorization on AEAT ✓"}
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400 text-center">
+            You will not need to repeat this step unless AEAT requires re-authorization.
+          </p>
+        </div>
+      );
+    }
+
     const steps = [
       {
         icon: (
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         ),
-        title: "Step 1: Login to AEAT",
+        title: "Step 2: Login to AEAT",
         description: "Access the Spanish Tax Agency portal to verify your professional status.",
         info: {
           label: "How to proceed",
@@ -678,7 +1109,7 @@ const Onboarding = () => {
         icon: (
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         ),
-        title: "Step 2: Download Census Data",
+        title: "Step 3: Download Census Data",
         description: "Navigate to the Census Data section and download your professional status PDF.",
         info: {
           label: "Path to follow",
@@ -728,12 +1159,13 @@ const Onboarding = () => {
       );
     }
 
-    if (aeatStep === 4) {
+    if (aeatStep === 4 || aeatStep === 5) {
+
       const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
       const labelClass = "block text-xs font-medium text-slate-600 mb-1";
       return (
         <div className="space-y-4">
-          <h4 className="text-base font-semibold text-center text-slate-800">Step 4: Confirm fiscal profile</h4>
+          <h4 className="text-base font-semibold text-center text-slate-800">Step 5: Confirm fiscal profile</h4>
           <p className="text-sm text-slate-500 text-center">
             {censusRecordId
               ? "We filled these fields from your census document. Check them and save."
@@ -828,7 +1260,7 @@ const Onboarding = () => {
             </svg>
           </div>
         </div>
-        <h4 className="text-base font-semibold text-center text-slate-800">Step 3: Upload Census Document</h4>
+        <h4 className="text-base font-semibold text-center text-slate-800">Step 4: Upload Census Document</h4>
         <p className="text-sm text-slate-500 text-center">
           Upload the census certificate, then confirm NIF, IAE, and VAT regime on the next step.
         </p>
@@ -1364,21 +1796,21 @@ const Onboarding = () => {
               </div>
               <div className="flex items-center justify-center mb-4">
                 <div className="flex items-center space-x-3">
-                  {[1, 2, 3, 4].map((step) => (
+                  {[1, 2, 3, 4, 5, 6, 7].map((step) => (
                     <div key={step} className="flex items-center">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
                         step <= aeatStep ? "bg-[#027570] text-white" : "bg-slate-200 text-slate-500"
                       }`}>
                         {step < aeatStep ? (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         ) : (
                           step
                         )}
                       </div>
-                      {step < 4 && (
-                        <div className={`w-8 h-0.5 ${step < aeatStep ? "bg-[#027570]" : "bg-slate-200"}`} />
+                      {step < 7 && (
+                        <div className={`w-5 h-0.5 ${step < aeatStep ? "bg-[#027570]" : "bg-slate-200"}`} />
                       )}
                     </div>
                   ))}
@@ -1389,23 +1821,23 @@ const Onboarding = () => {
           </ModalBody>
           <ModalFooter>
             <div className="flex justify-between w-full gap-3">
-              {aeatStep > 1 ? (
+              {aeatStep > 0 ? (
                 <Button variant="secondary" onClick={() => setAeatStep(aeatStep - 1)}>
                   Back
                 </Button>
               ) : (
                 <div />
               )}
-              {aeatStep === 3 && (
+              {aeatStep === 4 && (
                 <button
                   type="button"
-                  onClick={() => setAeatStep(4)}
+                  onClick={() => setAeatStep(5)}
                   className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {uploadedFile || censusRecordId ? "Review fiscal profile" : "Enter profile without document"}
                 </button>
               )}
-              {aeatStep === 4 && (
+              {aeatStep === 5 && (
                 <button
                   onClick={handleAEATComplete}
                   disabled={isLoading || isUploading}
@@ -1414,12 +1846,11 @@ const Onboarding = () => {
                   {isLoading ? "Saving..." : censusRecordId ? "Save fiscal profile" : "Create fiscal profile"}
                 </button>
               )}
-              {aeatStep < 3 && (
+              {(aeatStep < 4 || aeatStep === 6) && (
                 <div className="text-xs text-slate-500 text-center self-center">
                   Follow the steps above to continue
                 </div>
-              )}
-            </div>
+              )}            </div>
           </ModalFooter>
         </Modal>
       </div>

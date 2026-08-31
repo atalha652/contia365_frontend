@@ -56,6 +56,9 @@ export const syncOnboardingStatus = (status) => {
     business_profile_completed: status.business_profile_completed,
     representative_completed: status.representative_completed,
     aeat_connected: status.aeat_connected,
+    // Person certificate flags
+    certificate_uploaded: status.certificate_uploaded,
+    person_aeat_connected: status.person_aeat_connected,
     next_action: status.next_action,
   };
   localStorage.setItem("user", JSON.stringify(merged));
@@ -198,11 +201,15 @@ export const saveRepresentative = async (payload) => {
   }
 };
 
-export const confirmAeatConnect = async (representativeNif) => {
+export const confirmAeatConnect = async (representativeNif, termsVersion = "v1.0-2026", apoderamientoCode = null) => {
   try {
     const response = await httpPost({
       url: `${ONBOARDING_URL}/business/aeat-connect`,
-      payload: { representative_nif: representativeNif },
+      payload: {
+        representative_nif: representativeNif,
+        representation_terms_version: termsVersion,
+        apoderamiento_code: apoderamientoCode,
+      },
     });
     return response;
   } catch (err) {
@@ -223,3 +230,75 @@ export const aeatSync = async () => {
     return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
   }
 };
+
+// ---------------------------------------------------------------------------
+// Person onboarding — certificate upload & AEAT connect
+// ---------------------------------------------------------------------------
+
+export const uploadPersonCertificate = async (file, password) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("password", password);
+    const response = await httpPostBlob({
+      url: `${ONBOARDING_URL}/person/certificate`,
+      payload: formData,
+    });
+    return response;
+  } catch (err) {
+    console.error("Certificate upload error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const getPersonCertificateStatus = async () => {
+  try {
+    const response = await httpGet({ url: `${ONBOARDING_URL}/person/certificate` });
+    return response?.data || null;
+  } catch (err) {
+    console.error("Get certificate status error:", err);
+    return null;
+  }
+};
+
+export const confirmPersonAeatConnect = async (nifNie, termsVersion = "v1.0-2026", apoderamientoCode = null) => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/person/aeat-connect`,
+      payload: {
+        nif_nie: nifNie,
+        representation_terms_version: termsVersion,
+        apoderamiento_code: apoderamientoCode,
+      },
+    });
+    return response;
+  } catch (err) {
+    console.error("Person AEAT connect error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+
+export const getAeatConnectionStatus = async () => {
+  try {
+    const response = await httpGet({ url: `${ONBOARDING_URL}/aeat-connection/status` });
+    return response?.data || null;
+  } catch (err) {
+    console.error("Get AEAT connection status error:", err);
+    return null;
+  }
+};
+
+export const revokeAeatConnection = async () => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/aeat-connection/revoke`,
+      payload: {},
+    });
+    return response;
+  } catch (err) {
+    console.error("Revoke AEAT connection error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+

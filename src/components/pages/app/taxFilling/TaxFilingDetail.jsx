@@ -76,6 +76,7 @@ const TaxFilingDetail = () => {
   const [modeloId, setModeloId] = useState("");
   const [nif, setNif] = useState("");
   const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [certMode, setCertMode] = useState("taxpayer"); // "taxpayer" | "gestor"
 
   const loadFiling = async () => {
     try {
@@ -164,6 +165,7 @@ const TaxFilingDetail = () => {
         updated = await submitTaxFiling(id, {
           comment,
           test_mode: false,
+          cert_mode: certMode,
         });
       } else if (action === "submit_test") {
         updated = await submitTaxFiling(id, { comment, test_mode: true });
@@ -433,6 +435,51 @@ const TaxFilingDetail = () => {
                 This builds the official Modelo {modeloNo} file and sends it to AEAT. Status will become
                 ACCEPTED or REJECTED from the AEAT response, not from a manual button.
               </p>
+
+              {/* ── Certificate mode selector ── */}
+              <div>
+                <label className="block text-xs font-semibold text-fg-40 mb-1">
+                  Certificate mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    id="cert-mode-taxpayer"
+                    onClick={() => setCertMode("taxpayer")}
+                    className={`px-3 py-2.5 rounded-lg border text-xs text-left transition-colors ${
+                      certMode === "taxpayer"
+                        ? "border-ac-02 bg-ac-02/10 text-fg-40 font-semibold"
+                        : "border-bd-50 bg-bg-60 text-fg-60 hover:border-ac-02/60"
+                    }`}
+                  >
+                    <span className="block font-semibold mb-0.5">Delegated .p12</span>
+                    <span className="block leading-snug opacity-80">
+                      Uses the customer's uploaded digital certificate
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    id="cert-mode-gestor"
+                    onClick={() => setCertMode("gestor")}
+                    className={`px-3 py-2.5 rounded-lg border text-xs text-left transition-colors ${
+                      certMode === "gestor"
+                        ? "border-ac-02 bg-ac-02/10 text-fg-40 font-semibold"
+                        : "border-bd-50 bg-bg-60 text-fg-60 hover:border-ac-02/60"
+                    }`}
+                  >
+                    <span className="block font-semibold mb-0.5">Gestor (Contia)</span>
+                    <span className="block leading-snug opacity-80">
+                      Uses Contia's company certificate — requires AEAT apoderamiento
+                    </span>
+                  </button>
+                </div>
+                {certMode === "gestor" && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    ⚠ Gestor mode requires the customer to have granted an <em>apoderamiento</em> to Contia365 in AEAT.
+                  </p>
+                )}
+              </div>
+
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}

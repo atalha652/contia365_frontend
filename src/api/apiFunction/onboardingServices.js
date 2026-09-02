@@ -1,5 +1,5 @@
 import { ONBOARDING_URL, CENSUS_URL } from "../restEndpoint";
-import { httpGet, httpPost, httpPatch, httpPostBlob, httpGetBlob } from "../../utils/httpMethods";
+import { httpGet, httpPost, httpPut, httpPatch, httpPostBlob, httpGetBlob } from "../../utils/httpMethods";
 
 const USER_TYPE_ALIASES = {
   person: "person",
@@ -215,6 +215,44 @@ export const confirmAeatConnect = async (representativeNif, termsVersion = "v1.0
   } catch (err) {
     console.error("AEAT connect error:", err);
     return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const verifyBusinessAeat = async (apoderamientoCode = null) => {
+  try {
+    const response = await httpPost({
+      url: `${ONBOARDING_URL}/business/verify-aeat`,
+      payload: {
+        apoderamiento_code: apoderamientoCode,
+      },
+    });
+    return response;
+  } catch (err) {
+    console.error("Verify business AEAT error:", err);
+    return err?.response || { status: 500, data: { message: "An unexpected error occurred" } };
+  }
+};
+
+export const getBusinessProfile = async () => {
+  try {
+    const response = await httpGet({ url: `${ONBOARDING_URL}/business/profile` });
+    return response?.data || null;
+  } catch (err) {
+    console.error("Get business profile error:", err);
+    return null;
+  }
+};
+
+export const updateBusinessProfile = async (payload) => {
+  try {
+    const response = await httpPut({
+      url: `${ONBOARDING_URL}/business/profile`,
+      payload,
+    });
+    return response;
+  } catch (err) {
+    console.error("Update business profile error:", err);
+    return err?.response || { status: 500, data: { message: "Failed to update company profile" } };
   }
 };
 

@@ -45,6 +45,7 @@ import InvoiceList from "./components/pages/app/invoices/InvoiceList";
 import InvoiceEditor from "./components/pages/app/invoices/InvoiceEditor";
 import InvoiceView from "./components/pages/app/invoices/InvoiceView";
 import AeatSettings from "./components/pages/app/tax/AeatSettings";
+import CompanySettings from "./components/pages/app/settings/CompanySettings";
 
 
 import {
@@ -154,6 +155,7 @@ function App() {
               <Route path="invoices" element={<InvoiceList />} />
               <Route path="invoices/:invoiceId" element={<InvoiceEditor />} />
               <Route path="invoices/view/:invoiceId" element={<InvoiceView />} />
+              <Route path="settings/company" element={<CompanySettings />} />
               <Route path="settings/aeat" element={<AeatSettings />} />
               <Route path="settings/compliance" element={<AeatSettings />} />
 

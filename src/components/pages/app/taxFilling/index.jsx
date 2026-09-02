@@ -202,7 +202,7 @@ const TaxFiling = () => {
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-ac-02 to-blue-600 rounded-xl shadow-lg">
+                <div className="p-3 bg-[#582dee] rounded-xl shadow-md">
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -219,13 +219,13 @@ const TaxFiling = () => {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="px-3 py-2 bg-bg-50 border border-bd-50 rounded-lg text-sm font-medium text-fg-40 focus:outline-none focus:ring-2 focus:ring-ac-02 focus:border-transparent"
+                  className="px-3 py-2 bg-bg-50 border border-bd-50 rounded-lg text-sm font-medium text-fg-40 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:border-transparent"
                 >
                   {years.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
                 {selectedSemester === "annual" ? (
                   <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-bg-50 rounded-lg border border-bd-50 shadow-sm">
-                    <div className="w-2 h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600" />
+                    <div className="w-2 h-2 rounded-full bg-[#582dee]" />
                     <span className="text-sm font-medium text-fg-40">Annual Quarter View</span>
                   </div>
                 ) : monthly303 && currentMonth ? (
@@ -239,10 +239,14 @@ const TaxFiling = () => {
                     <span className="text-sm font-medium text-fg-40">{currentSemester.fullLabel}</span>
                   </div>
                 )}
-                <Button type="button" variant="primary" onClick={openTaxCalculations}>
-                  <Calculator className="w-4 h-4 mr-2" />
-                  Calculate Tax
-                </Button>
+                <button
+                  type="button"
+                  onClick={openTaxCalculations}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#582dee] hover:bg-[#4622c7] text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 shrink-0 whitespace-nowrap"
+                >
+                  <Calculator className="w-4 h-4" />
+                  <span>Calculate Tax</span>
+                </button>
               </div>
             </div>
           </div>

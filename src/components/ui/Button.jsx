@@ -14,13 +14,15 @@ const Button = forwardRef(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ac-02 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
+      "inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ac-02 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap shrink-0";
 
     const variants = {
-      primary: "bg-ac-02 text-white hover:bg-ac-01",
+      primary: "bg-[#582dee] text-white hover:bg-[#4622c7] shadow-sm font-semibold",
       secondary: "bg-bg-50 text-fg-40 border border-bd-50 hover:bg-bg-40",
       ghost: "text-fg-60 hover:text-fg-40 hover:bg-bg-60",
       outline: "border border-bd-50 bg-transparent text-fg-40 hover:bg-bg-50",
+      danger: "bg-white text-red-700 border border-red-200 hover:bg-red-50 hover:border-red-300 shadow-sm font-semibold",
+      success: "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 shadow-sm font-semibold",
     };
 
     const sizes = {

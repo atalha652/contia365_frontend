@@ -399,7 +399,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                                     relative px-6 py-2.5 text-sm font-medium rounded-lg
                                     transition-all duration-300 ease-out
                                     ${activeQuarter === quarter.id
-                                        ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white shadow-lg shadow-ac-02/30 scale-105"
+                                        ? "bg-[#582dee] text-white shadow-md shadow-[#582dee]/30 scale-105"
                                         : "text-fg-60 hover:text-fg-40 hover:bg-bg-40"
                                     }
                                 `}
@@ -510,7 +510,7 @@ const MonthTabs = ({ semester, year, disableUrlSync = false, defaultQuarterId, c
                 ${locked
                                         ? "text-fg-60/50 cursor-not-allowed"
                                         : activeMonth === month
-                                            ? "bg-gradient-to-r from-ac-02 to-blue-600 text-white shadow-lg shadow-ac-02/30 scale-105"
+                                            ? "bg-[#582dee] text-white shadow-md shadow-[#582dee]/30 scale-105"
                                             : "text-fg-60 hover:text-fg-40 hover:bg-bg-40"
                                     }
               `}

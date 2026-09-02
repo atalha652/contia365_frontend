@@ -171,7 +171,7 @@ const ManualExpenseModal = ({ open, onClose, onCreated }) => {
         }
       />
       <ModalBody>
-        <div className="space-y-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-1">
+        <div className="space-y-4 max-h-[65vh] overflow-y-auto no-scrollbar">
           <p className="text-xs text-fg-60">
             Enter the expense by hand. It is approved on save. No file, OCR, or approval request.
           </p>

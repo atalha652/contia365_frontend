@@ -105,17 +105,22 @@ const AeatSettings = () => {
     <div className="flex-1 bg-bg-70">
       <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-fg-40">AEAT Representation & Apoderamiento</h1>
-            <p className="text-sm text-fg-60 mt-1">
+            <h1 className="text-2xl font-bold text-slate-900">AEAT Representation & Apoderamiento</h1>
+            <p className="text-sm text-slate-500 mt-1">
               Manage Contia365's legal authority to act on your behalf before AEAT (Agencia Tributaria)
             </p>
           </div>
-          <Button variant="secondary" onClick={loadStatus} disabled={loading} className="flex items-center gap-2">
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} strokeWidth={1.5} />
-            Refresh Status
-          </Button>
+          <button
+            type="button"
+            onClick={loadStatus}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm whitespace-nowrap shrink-0 disabled:opacity-50 self-start sm:self-auto"
+          >
+            <RefreshCw className={`w-4 h-4 text-[#582dee] ${loading ? "animate-spin" : ""}`} strokeWidth={2} />
+            <span>Refresh Status</span>
+          </button>
         </div>
 
         {/* Loading Skeleton */}
@@ -138,7 +143,7 @@ const AeatSettings = () => {
             <div
               className={`border rounded-2xl p-6 ${
                 status.connected
-                  ? "bg-green-500/5 border-green-500/20"
+                  ? "bg-[#582dee]/5 border-[#582dee]/20"
                   : "bg-red-500/5 border-red-500/20"
               }`}
             >
@@ -146,11 +151,11 @@ const AeatSettings = () => {
                 <div className="flex items-center gap-4">
                   <div
                     className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      status.connected ? "bg-green-500/10" : "bg-red-500/10"
+                      status.connected ? "bg-[#582dee]/10" : "bg-red-500/10"
                     }`}
                   >
                     {status.connected ? (
-                      <ShieldCheck className="w-6 h-6 text-green-500" />
+                      <ShieldCheck className="w-6 h-6 text-[#582dee]" />
                     ) : (
                       <ShieldAlert className="w-6 h-6 text-red-500" />
                     )}
@@ -345,7 +350,7 @@ const AeatSettings = () => {
                   id="legal-agree"
                   checked={agreed}
                   onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 rounded border-bd-50 bg-bg-50 text-ac-02 focus:ring-ac-02"
+                  className="mt-0.5 rounded border-bd-50 bg-bg-50 text-[#582dee] focus:ring-[#582dee]"
                 />
                 <label htmlFor="legal-agree" className="text-xs text-fg-60 cursor-pointer leading-snug">
                   I accept the <strong>Representation Terms v1.0-2026</strong> and confirm that Contia365 is authorized to present 

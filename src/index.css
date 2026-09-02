@@ -21,8 +21,8 @@
     --fg-60: #636363;
     --fg-70: #9b9b9b;
 
-    --ac-01: #5d1eda;
-    --ac-02: #6421ef;
+    --ac-01: #582dee;
+    --ac-02: #582dee;
 
     --scrollbar-thumb: #cbd5e1;
     --scrollbar-track: #f1f5f9;
@@ -96,6 +96,14 @@
 .dropdown-options-scroll::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
   border-radius: 4px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .model-dropdown-option:hover,

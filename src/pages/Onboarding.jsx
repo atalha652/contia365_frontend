@@ -19,10 +19,14 @@ import {
   saveCompanyDetails,
   saveRepresentative,
   confirmAeatConnect,
+  verifyBusinessAeat,
+  getAeatConnectionStatus,
+  getBusinessProfile,
   uploadPersonCertificate,
   confirmPersonAeatConnect,
 } from "../api/apiFunction/onboardingServices";
 import { getMyWaitlist, joinWaitlist } from "../api/apiFunction/waitlistServices";
+import { isValidCif, isValidDniNie } from "../utils/spanishTaxIdValidator";
 
 const COUNTRIES = [
   {
@@ -206,6 +210,9 @@ const Onboarding = () => {
   const [companyForm, setCompanyForm] = useState(EMPTY_COMPANY_FORM);
   const [repForm, setRepForm] = useState(EMPTY_REP_FORM);
   const [aeatConnecting, setAeatConnecting] = useState(false);
+  const [apoderamientoCode, setApoderamientoCode] = useState("");
+  const [aeatVerificationError, setAeatVerificationError] = useState(null);
+  const [businessSuccessSummary, setBusinessSuccessSummary] = useState(null);
   const [certFile, setCertFile] = useState(null);
   const [certPassword, setCertPassword] = useState("");
   const [certUploading, setCertUploading] = useState(false);
@@ -339,6 +346,7 @@ const Onboarding = () => {
     const currentStep = onboardingStatus?.current_step;
     if (!currentStep) return;
     if (currentStep === "completed") {
+      if (businessSuccessSummary) return;
       navigate("/app/dashboard", { replace: true });
       return;
     }
@@ -367,6 +375,42 @@ const Onboarding = () => {
     // Business steps — close person modal if open
     if (["company_details", "representative", "aeat_connection"].includes(currentStep)) {
       setShowAEATModal(false);
+      if (currentStep === "company_details" && !companyForm.legal_name) {
+        getBusinessProfile().then((data) => {
+          if (data?.company) {
+            const comp = data.company;
+            const addr = comp.tax_address || {};
+            setCompanyForm({
+              legal_name: comp.legal_name || "",
+              cif: comp.cif || "",
+              company_type: comp.company_type || "S.L.",
+              address_line: addr.address_line || "",
+              postal_code: addr.postal_code || "",
+              city: addr.city || "",
+              province: addr.province || "",
+            });
+          }
+        }).catch(() => {});
+      }
+      if (currentStep === "representative" && !repForm.full_name) {
+        getBusinessProfile().then((data) => {
+          if (data?.representative) {
+            const rep = data.representative;
+            setRepForm({
+              full_name: rep.full_name || "",
+              dni_nie: rep.dni_nie || "",
+              role: rep.role || "administrador",
+            });
+          }
+        }).catch(() => {});
+      }
+      if (currentStep === "aeat_connection" && !repForm.dni_nie) {
+        getAeatConnectionStatus().then((status) => {
+          if (status?.nif) {
+            setRepForm((prev) => ({ ...prev, dni_nie: status.nif }));
+          }
+        }).catch(() => {});
+      }
       return;
     }
     setShowAEATModal(false);
@@ -503,8 +547,13 @@ const Onboarding = () => {
       toast.error("Legal name is required.");
       return;
     }
-    if (!companyForm.cif.trim()) {
+    const cleanCif = companyForm.cif.trim().toUpperCase();
+    if (!cleanCif) {
       toast.error("CIF is required.");
+      return;
+    }
+    if (!isValidCif(cleanCif)) {
+      toast.error("Invalid Spanish CIF format or checksum. Please check the CIF (e.g. B12345678).");
       return;
     }
     if (!companyForm.company_type) {
@@ -515,7 +564,7 @@ const Onboarding = () => {
     try {
       const payload = {
         legal_name: companyForm.legal_name.trim(),
-        cif: companyForm.cif.trim().toUpperCase(),
+        cif: cleanCif,
         company_type: companyForm.company_type,
         tax_address: {
           address_line: companyForm.address_line.trim() || null,
@@ -544,8 +593,13 @@ const Onboarding = () => {
       toast.error("Full name is required.");
       return;
     }
-    if (!repForm.dni_nie.trim()) {
+    const cleanDniNie = repForm.dni_nie.trim().toUpperCase();
+    if (!cleanDniNie) {
       toast.error("DNI/NIE is required.");
+      return;
+    }
+    if (!isValidDniNie(cleanDniNie)) {
+      toast.error("Invalid Spanish DNI/NIE format or letter checksum (e.g. 12345678Z or X1234567L).");
       return;
     }
     if (!repForm.role) {
@@ -574,20 +628,53 @@ const Onboarding = () => {
   };
 
   const handleAeatConnect = async () => {
-    const repNif = repForm.dni_nie.trim().toUpperCase();
+    let repNif = repForm.dni_nie?.trim().toUpperCase();
+    if (!repNif) {
+      const status = await getAeatConnectionStatus();
+      if (status?.nif) {
+        repNif = status.nif.trim().toUpperCase();
+        setRepForm((prev) => ({ ...prev, dni_nie: repNif }));
+      }
+    }
     if (!repNif) {
       toast.error("Representative DNI/NIE is required to confirm AEAT connection.");
       return;
     }
+    setAeatVerificationError(null);
     setAeatConnecting(true);
     try {
-      const response = await confirmAeatConnect(repNif);
+      const code = apoderamientoCode.trim() || null;
+      const response = await confirmAeatConnect(repNif, "v1.0-2026", code);
       if (response?.status === 200 || response?.status === 201) {
-        toast.success("AEAT connection confirmed. Onboarding complete.");
+        const verifMsg = response.data?.verification?.message;
+        toast.success(verifMsg ? `AEAT Verified: ${verifMsg}` : "AEAT connection confirmed and verified. Onboarding complete.");
+        let storedUser = {};
+        try {
+          storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        } catch {}
+        const bizProf = storedUser?.business_profile || {};
+        const authRep = storedUser?.authorized_representative || {};
+
+        setBusinessSuccessSummary({
+          companyName: companyForm.legal_name || bizProf.legal_name || "Company",
+          cif: companyForm.cif || bizProf.cif || "—",
+          companyType: companyForm.company_type || bizProf.company_type || "S.L.",
+          representativeName: repForm.full_name || authRep.full_name || "Authorized Representative",
+          representativeDni: repNif || authRep.dni_nie || "—",
+          representativeRole: repForm.role || authRep.role || "administrador",
+          verification: response.data?.verification || { status: "VERIFIED" },
+        });
         await refreshOnboardingStatus();
       } else {
         const detail = response?.data?.detail;
-        toast.error(typeof detail === "string" ? detail : "Failed to confirm AEAT connection.");
+        if (typeof detail === "object" && detail !== null) {
+          setAeatVerificationError(detail);
+          toast.error(detail.message || "AEAT verification failed.");
+        } else {
+          const msg = typeof detail === "string" ? detail : "Failed to confirm AEAT connection.";
+          setAeatVerificationError({ message: msg });
+          toast.error(msg);
+        }
       }
     } catch {
       toast.error("Network error. Please try again.");
@@ -734,7 +821,7 @@ const Onboarding = () => {
         <div className="space-y-5">
           {/* Icon */}
           <div className="flex items-center justify-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -761,7 +848,7 @@ const Onboarding = () => {
                 "You can revoke this authorization at any time from your AEAT portal.",
               ].map((line, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#582dee] shrink-0" />
                   {line}
                 </li>
               ))}
@@ -770,11 +857,11 @@ const Onboarding = () => {
 
           {/* Flow diagram */}
           <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-xl px-4 py-3">
-            <span className="px-2.5 py-1 rounded-lg bg-[#027570]/10 text-[#027570] font-semibold">You (taxpayer)</span>
+            <span className="px-2.5 py-1 rounded-lg bg-[#582dee]/10 text-[#582dee] font-semibold">You (taxpayer)</span>
             <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            <span className="px-2.5 py-1 rounded-lg bg-[#027570]/10 text-[#027570] font-semibold">Contia365</span>
+            <span className="px-2.5 py-1 rounded-lg bg-[#582dee]/10 text-[#582dee] font-semibold">Contia365</span>
             <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -791,7 +878,7 @@ const Onboarding = () => {
                 onChange={(e) => setAeatConsent(e.target.checked)}
               />
               <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors duration-150 ${
-                aeatConsent ? "bg-[#027570] border-[#027570]" : "border-slate-300 bg-white group-hover:border-[#027570]"
+                aeatConsent ? "bg-[#582dee] border-[#582dee]" : "border-slate-300 bg-white group-hover:border-[#582dee]"
               }`}>
                 {aeatConsent && (
                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -812,7 +899,7 @@ const Onboarding = () => {
               type="button"
               disabled={!aeatConsent}
               onClick={() => setAeatStep(1)}
-              className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+              className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
             >
               I Agree, Continue →
             </button>
@@ -823,13 +910,13 @@ const Onboarding = () => {
 
     // ── Step 6: Digital Certificate Upload ──────────────────────────────────
     if (aeatStep === 6) {
-      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#582dee]";
       const labelClass = "block text-xs font-medium text-slate-600 mb-1";
       return (
         <div className="space-y-4">
           {/* Icon */}
           <div className="flex items-center justify-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -855,7 +942,7 @@ const Onboarding = () => {
                 "Your certificate is encrypted on our servers — never stored in plain text.",
               ].map((line, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#582dee] shrink-0" />
                   {line}
                 </li>
               ))}
@@ -883,7 +970,7 @@ const Onboarding = () => {
           )}
 
           {/* File upload drop zone */}
-          <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center hover:border-[#027570] transition-colors duration-200">
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 text-center hover:border-[#582dee] transition-colors duration-200">
             <input
               type="file"
               accept=".p12,.pfx"
@@ -895,7 +982,7 @@ const Onboarding = () => {
             <label htmlFor="cert-upload" className={`cursor-pointer ${certUploading ? "pointer-events-none" : ""}`}>
               <div className="flex flex-col items-center gap-2">
                 {certUploading ? (
-                  <svg className="animate-spin w-9 h-9 text-[#027570]" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin w-9 h-9 text-[#582dee]" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
@@ -920,8 +1007,8 @@ const Onboarding = () => {
           {/* Selected file indicator */}
           {certFile && !certUploading && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#027570]/10 rounded-lg flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-[#027570]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 bg-[#582dee]/10 rounded-lg flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#582dee]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -955,7 +1042,7 @@ const Onboarding = () => {
               type="button"
               onClick={handleCertificateUpload}
               disabled={certUploading || !certFile || !certPassword.trim()}
-              className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+              className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
             >
               {certUploading ? "Uploading & verifying..." : "Upload Certificate →"}
             </button>
@@ -967,13 +1054,13 @@ const Onboarding = () => {
     // ── Step 7: AEAT Apoderamiento (Individual) ──────────────────────────────
     if (aeatStep === 7) {
       const contiaNif = import.meta.env.VITE_CONTIA_NIF || "B00000000";
-      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#582dee]";
       const labelClass = "block text-xs font-medium text-slate-600 mb-1";
       return (
         <div className="space-y-4">
           {/* Icon */}
           <div className="flex items-center justify-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -1004,7 +1091,7 @@ const Onboarding = () => {
                 "Confirm and save — then return to this page.",
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
-                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#027570]/10 text-[#027570] text-xs font-bold flex items-center justify-center">
+                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#582dee]/10 text-[#582dee] text-xs font-bold flex items-center justify-center">
                     {i + 1}
                   </span>
                   {step}
@@ -1014,9 +1101,9 @@ const Onboarding = () => {
           </div>
 
           {/* Contia NIF badge */}
-          <div className="flex items-center justify-between bg-[#027570]/5 border border-[#027570]/20 rounded-xl px-4 py-3">
+          <div className="flex items-center justify-between bg-[#582dee]/5 border border-[#582dee]/20 rounded-xl px-4 py-3">
             <span className="text-xs font-medium text-slate-600">Contia365 NIF (who to authorize)</span>
-            <span className="text-sm font-bold text-[#027570] font-mono">{contiaNif}</span>
+            <span className="text-sm font-bold text-[#582dee] font-mono">{contiaNif}</span>
           </div>
 
           {/* Open AEAT portal button */}
@@ -1025,7 +1112,7 @@ const Onboarding = () => {
             target="_blank"
 
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#027570] text-[#027570] font-semibold rounded-xl hover:bg-[#027570]/5 transition-colors"
+            className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#582dee] text-[#582dee] font-semibold rounded-xl hover:bg-[#582dee]/5 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1060,7 +1147,7 @@ const Onboarding = () => {
               type="button"
               onClick={handlePersonAeatConnect}
               disabled={personAeatConnecting || !personAeatNif.trim()}
-              className="w-full px-6 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full px-6 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
             >
               {personAeatConnecting
                 ? "Confirming..."
@@ -1099,7 +1186,7 @@ const Onboarding = () => {
               );
               setAeatStep(2);
             }}
-            className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200"
+            className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] transition-all duration-200"
           >
             Open AEAT Portal
           </button>
@@ -1122,7 +1209,7 @@ const Onboarding = () => {
         action: (
           <button
             onClick={() => setAeatStep(3)}
-            className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] transition-all duration-200"
+            className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] transition-all duration-200"
           >
             I have Downloaded the PDF
           </button>
@@ -1135,7 +1222,7 @@ const Onboarding = () => {
       return (
         <div className="space-y-4">
           <div className="flex items-center justify-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+            <div className="w-14 h-14 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {s.icon}
               </svg>
@@ -1148,7 +1235,7 @@ const Onboarding = () => {
             <ul className="space-y-1.5">
               {s.info.lines.map((line, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#582dee] shrink-0" />
                   {line}
                 </li>
               ))}
@@ -1161,7 +1248,7 @@ const Onboarding = () => {
 
     if (aeatStep === 4 || aeatStep === 5) {
 
-      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+      const inputClass = "w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#582dee]";
       const labelClass = "block text-xs font-medium text-slate-600 mb-1";
       return (
         <div className="space-y-4">
@@ -1237,7 +1324,7 @@ const Onboarding = () => {
                       type="button"
                       onClick={() => handleDocumentDownload(document)}
                       disabled={downloadingDocumentId === document.file_id}
-                      className="text-xs font-semibold text-[#027570] hover:underline disabled:opacity-50"
+                      className="text-xs font-semibold text-[#582dee] hover:underline disabled:opacity-50"
                     >
                       {downloadingDocumentId === document.file_id ? "Downloading…" : "Download"}
                     </button>
@@ -1254,7 +1341,7 @@ const Onboarding = () => {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-center">
-          <div className="w-14 h-14 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center">
+          <div className="w-14 h-14 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center">
             <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
@@ -1269,13 +1356,13 @@ const Onboarding = () => {
           <ul className="space-y-1.5">
             {["PDF — Certificado de Situación Censal", "Word (.docx) — Census certificate document", "Make sure the document is the official AEAT census certificate."].map((line, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#027570] shrink-0" />
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-[#582dee] shrink-0" />
                 {line}
               </li>
             ))}
           </ul>
         </div>
-        <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-[#027570] transition-colors duration-200">
+        <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-[#582dee] transition-colors duration-200">
           <input
             type="file"
             accept=".pdf,.docx"
@@ -1287,7 +1374,7 @@ const Onboarding = () => {
           <label htmlFor="census-upload" className={`cursor-pointer ${isUploading ? "pointer-events-none" : ""}`}>
             <div className="flex flex-col items-center">
               {isUploading ? (
-                <svg className="animate-spin w-10 h-10 text-[#027570] mb-3" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin w-10 h-10 text-[#582dee] mb-3" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
@@ -1305,8 +1392,8 @@ const Onboarding = () => {
         </div>
         {uploadedFile && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#027570]/10 rounded-lg flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4 text-[#027570]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-8 h-8 bg-[#582dee]/10 rounded-lg flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-[#582dee]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -1324,7 +1411,7 @@ const Onboarding = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 text-slate-500">
-          <div className="w-9 h-9 rounded-full border-4 border-slate-200 border-t-[#027570] animate-spin" />
+          <div className="w-9 h-9 rounded-full border-4 border-slate-200 border-t-[#582dee] animate-spin" />
           <p className="text-sm">Loading your onboarding progress…</p>
         </div>
       </div>
@@ -1340,7 +1427,7 @@ const Onboarding = () => {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-6 px-6 py-2.5 bg-[#027570] text-white font-semibold rounded-xl"
+            className="mt-6 px-6 py-2.5 bg-[#582dee] text-white font-semibold rounded-xl"
           >
             Try again
           </button>
@@ -1389,13 +1476,13 @@ const Onboarding = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-3xl">
           <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
-            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 1 of 3</p>
+            <p className="text-xs font-semibold text-[#582dee] uppercase tracking-widest mb-2">Step 1 of 3</p>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Select your country</h1>
             <p className="text-slate-500">Choose where you operate so Contia365 can apply the correct fiscal rules.</p>
           </div>
@@ -1410,14 +1497,14 @@ const Onboarding = () => {
                   type="button"
                   onClick={() => setSelectedCountry(country.code)}
                   aria-pressed={isSelected}
-                  className={`relative text-left p-6 rounded-2xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2 ${
+                  className={`relative text-left p-6 rounded-2xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2 ${
                     isSelected
-                      ? "border-[#027570] bg-white shadow-xl scale-[1.01]"
-                      : "border-slate-200 bg-white hover:border-[#027570]/60 hover:shadow-md"
+                      ? "border-[#582dee] bg-white shadow-xl scale-[1.01]"
+                      : "border-slate-200 bg-white hover:border-[#582dee]/60 hover:shadow-md"
                   }`}
                 >
                   {isSelected && (
-                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#027570] flex items-center justify-center">
+                    <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#582dee] flex items-center justify-center">
                       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
@@ -1443,7 +1530,7 @@ const Onboarding = () => {
               type="button"
               onClick={handleCountryContinue}
               disabled={!selectedCountry || countryLoading}
-              className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+              className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2"
             >
               {countryLoading
                 ? "Saving..."
@@ -1459,16 +1546,16 @@ const Onboarding = () => {
 
   // ── Business screen: Company Details ────────────────────────────────────
   if (onboardingStatus?.current_step === "company_details") {
-    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#582dee]";
     const labelCls = "block text-xs font-medium text-slate-600 mb-1.5";
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-2xl">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4 text-white">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center mx-auto mb-4 text-white">
               {TYPE_ICONS.business}
             </div>
-            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 3 of 5</p>
+            <p className="text-xs font-semibold text-[#582dee] uppercase tracking-widest mb-2">Step 3 of 5</p>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Company Details</h1>
             <p className="text-slate-500 text-sm">Enter your company's legal information. The CIF will be used for all AEAT submissions.</p>
           </div>
@@ -1524,7 +1611,7 @@ const Onboarding = () => {
             </div>
             <div className="flex justify-end mt-6">
               <button type="button" onClick={handleCompanyDetailsSave} disabled={isLoading}
-                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
+                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
                 {isLoading ? "Saving..." : "Continue →"}
               </button>
             </div>
@@ -1536,19 +1623,19 @@ const Onboarding = () => {
 
   // ── Business screen: Authorized Representative ───────────────────────────
   if (onboardingStatus?.current_step === "representative") {
-    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#027570]";
+    const inputCls = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#582dee]";
     const labelCls = "block text-xs font-medium text-slate-600 mb-1.5";
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
                   d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 4 of 5</p>
+            <p className="text-xs font-semibold text-[#582dee] uppercase tracking-widest mb-2">Step 4 of 5</p>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Authorized Representative</h1>
             <p className="text-slate-500 text-sm max-w-md mx-auto">
               In Spain, a company needs an authorized person to access AEAT — usually the
@@ -1582,8 +1669,97 @@ const Onboarding = () => {
             </div>
             <div className="flex justify-end pt-2">
               <button type="button" onClick={handleRepresentativeSave} disabled={isLoading}
-                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
+                className="min-w-36 px-8 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
                 {isLoading ? "Saving..." : "Continue →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Business Onboarding Success Screen ──────────────────────────────────
+  if (businessSuccessSummary) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl">
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-emerald-200">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Onboarding Complete
+            </span>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Company Connected!</h1>
+            <p className="text-slate-600 text-sm max-w-md mx-auto">
+              Contia365 is now authorized to access your company's taxpayer information and file taxes with AEAT.
+            </p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Registered Profile Summary
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#582dee]/10 flex items-center justify-center text-[#582dee] font-bold text-base">
+                      🏢
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{businessSuccessSummary.companyName}</p>
+                      <p className="text-xs text-slate-500">{businessSuccessSummary.companyType}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    {businessSuccessSummary.cif || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#582dee]/10 flex items-center justify-center text-[#582dee] font-bold text-base">
+                      👤
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{businessSuccessSummary.representativeName}</p>
+                      <p className="text-xs text-slate-500 capitalize">{businessSuccessSummary.representativeRole}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    {businessSuccessSummary.representativeDni || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-800">
+                    <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span>AEAT Apoderamiento Status</span>
+                  </div>
+                  <span className="font-semibold text-emerald-700 font-mono">
+                    {businessSuccessSummary.verification?.status || "VERIFIED"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => navigate("/app/dashboard", { replace: true })}
+                className="w-full px-6 py-3.5 bg-[#582dee] hover:bg-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+              >
+                <span>Go to Dashboard</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
               </button>
             </div>
           </div>
@@ -1600,13 +1776,13 @@ const Onboarding = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-xl">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
-            <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 5 of 5</p>
+            <p className="text-xs font-semibold text-[#582dee] uppercase tracking-widest mb-2">Step 5 of 5</p>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Connect to AEAT</h1>
             <p className="text-slate-500 text-sm max-w-md mx-auto">
               The authorized representative needs to grant Contia365 permission to file taxes
@@ -1628,7 +1804,7 @@ const Onboarding = () => {
                   "Save and return to this page",
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
-                    <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#027570]/10 text-[#027570] text-xs font-bold flex items-center justify-center">
+                    <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[#582dee]/10 text-[#582dee] text-xs font-bold flex items-center justify-center">
                       {i + 1}
                     </span>
                     {step}
@@ -1637,14 +1813,20 @@ const Onboarding = () => {
               </ol>
             </div>
 
-            <div className="flex items-center justify-between bg-[#027570]/5 border border-[#027570]/20 rounded-xl px-4 py-3">
-              <span className="text-xs font-medium text-slate-600">Contia365 NIF (who to authorize)</span>
-              <span className="text-sm font-bold text-[#027570] font-mono">{contiaNif}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <span className="text-xs font-medium text-slate-600">Representative DNI/NIE</span>
+                <span className="text-sm font-bold text-slate-800 font-mono">{repNif}</span>
+              </div>
+              <div className="flex items-center justify-between bg-[#582dee]/5 border border-[#582dee]/20 rounded-xl px-4 py-3">
+                <span className="text-xs font-medium text-slate-600">Contia365 NIF (to authorize)</span>
+                <span className="text-sm font-bold text-[#582dee] font-mono">{contiaNif}</span>
+              </div>
             </div>
 
             <a href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/G322.shtml"
               target="_blank" rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#027570] text-[#027570] font-semibold rounded-xl hover:bg-[#027570]/5 transition-colors">
+              className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-[#582dee] text-[#582dee] font-semibold rounded-xl hover:bg-[#582dee]/5 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -1652,13 +1834,56 @@ const Onboarding = () => {
               Open AEAT Portal
             </a>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5">
+                AEAT Apoderamiento Reference / Receipt Code (Optional)
+              </label>
+              <input
+                type="text"
+                value={apoderamientoCode}
+                onChange={(e) => setApoderamientoCode(e.target.value)}
+                placeholder="e.g. APOD-2026-XXXX or CSV from AEAT receipt"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#582dee]/30 focus:border-[#582dee] transition-colors font-mono"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                If AEAT provided a receipt reference code, enter it here for instant live verification.
+              </p>
+            </div>
+
+            {aeatVerificationError && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-900">
+                <div className="flex items-start gap-2.5">
+                  <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div className="text-xs space-y-1">
+                    <p className="font-semibold text-amber-950">AEAT Authorization Notice</p>
+                    <p>{aeatVerificationError.message || "AEAT has not confirmed the power of attorney yet."}</p>
+                    <p className="text-amber-800">
+                      If you just completed the procedure on the AEAT portal, AEAT's servers may take a few minutes to synchronize. Please double check that Contia's NIF ({contiaNif}) was authorized and try again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="border-t border-slate-100 pt-4">
               <p className="text-xs text-slate-500 mb-3 text-center">
-                Once you have granted the authorization on AEAT, click below to complete onboarding.
+                Once you have granted the authorization on AEAT, click below to verify and complete onboarding.
               </p>
               <button type="button" onClick={handleAeatConnect} disabled={aeatConnecting}
-                className="w-full px-6 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200">
-                {aeatConnecting ? "Confirming..." : "I've completed the authorization on AEAT ✓"}
+                className="w-full px-6 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2">
+                {aeatConnecting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Verifying with AEAT SOAP...
+                  </>
+                ) : (
+                  "I've completed the authorization on AEAT ✓"
+                )}
               </button>
             </div>
 
@@ -1681,7 +1906,7 @@ const Onboarding = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-xl p-8 text-center">
-          <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-r from-[#027570] to-[#038a84] flex items-center justify-center text-white">
+          <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-gradient-to-r from-[#582dee] to-[#4622c7] flex items-center justify-center text-white">
             {TYPE_ICONS[WHITE_LABEL_ID]}
           </div>
           <span className="inline-flex px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold uppercase tracking-wide">
@@ -1713,14 +1938,14 @@ const Onboarding = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-3xl">
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-gradient-to-r from-[#027570] to-[#038a84] rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-gradient-to-r from-[#582dee] to-[#4622c7] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to Contia365</h1>
-          <p className="text-xs font-semibold text-[#027570] uppercase tracking-widest mb-2">Step 2 of 3</p>
+          <p className="text-xs font-semibold text-[#582dee] uppercase tracking-widest mb-2">Step 2 of 3</p>
           <p className="text-slate-500 text-base">Select your account type to get started</p>
         </div>
 
@@ -1732,10 +1957,10 @@ const Onboarding = () => {
                   key={type.id}
                   type="button"
                   onClick={() => setSelected(type.id)}
-                  className={`relative flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2 ${
+                  className={`relative flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2 ${
                     selected === type.id
-                      ? "border-[#027570] bg-gradient-to-b from-[#027570] to-[#038a84] text-white shadow-xl scale-[1.02]"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-[#027570] hover:shadow-md"
+                      ? "border-[#582dee] bg-gradient-to-b from-[#582dee] to-[#4622c7] text-white shadow-xl scale-[1.02]"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-[#582dee] hover:shadow-md"
                   }`}
                 >
                   {selected === type.id && (
@@ -1747,7 +1972,7 @@ const Onboarding = () => {
                       </svg>
                     </div>
                   )}
-                  <div className={`mb-3 ${selected === type.id ? "text-white" : "text-[#027570]"}`}>
+                  <div className={`mb-3 ${selected === type.id ? "text-white" : "text-[#582dee]"}`}>
                     {TYPE_ICONS[type.id] ?? null}
                   </div>
                   <span className="text-lg font-bold">{type.name}</span>
@@ -1773,7 +1998,7 @@ const Onboarding = () => {
           <button
             onClick={handleContinue}
             disabled={!selected || isLoading || typesLoading}
-            className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+            className="min-w-44 px-10 py-3 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2"
           >
             {isLoading
               ? "Saving..."
@@ -1799,7 +2024,7 @@ const Onboarding = () => {
                   {[1, 2, 3, 4, 5, 6, 7].map((step) => (
                     <div key={step} className="flex items-center">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium ${
-                        step <= aeatStep ? "bg-[#027570] text-white" : "bg-slate-200 text-slate-500"
+                        step <= aeatStep ? "bg-[#582dee] text-white" : "bg-slate-200 text-slate-500"
                       }`}>
                         {step < aeatStep ? (
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1810,7 +2035,7 @@ const Onboarding = () => {
                         )}
                       </div>
                       {step < 7 && (
-                        <div className={`w-5 h-0.5 ${step < aeatStep ? "bg-[#027570]" : "bg-slate-200"}`} />
+                        <div className={`w-5 h-0.5 ${step < aeatStep ? "bg-[#582dee]" : "bg-slate-200"}`} />
                       )}
                     </div>
                   ))}
@@ -1832,7 +2057,7 @@ const Onboarding = () => {
                 <button
                   type="button"
                   onClick={() => setAeatStep(5)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {uploadedFile || censusRecordId ? "Review fiscal profile" : "Enter profile without document"}
                 </button>
@@ -1841,7 +2066,7 @@ const Onboarding = () => {
                 <button
                   onClick={handleAEATComplete}
                   disabled={isLoading || isUploading}
-                  className="px-6 py-2.5 bg-gradient-to-r from-[#027570] to-[#038a84] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#038a84] hover:to-[#027570] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2"
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#582dee] to-[#4622c7] text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:from-[#4622c7] hover:to-[#582dee] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2"
                 >
                   {isLoading ? "Saving..." : censusRecordId ? "Save fiscal profile" : "Create fiscal profile"}
                 </button>

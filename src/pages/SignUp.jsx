@@ -77,7 +77,7 @@ const SignUp = () => {
     }
   };
 
-  const inputClass = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#027570] focus:border-[#027570] text-sm transition-colors";
+  const inputClass = "w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:border-[#582dee] text-sm transition-colors";
   const labelClass = "block text-sm font-medium text-slate-700 mb-1";
 
   return (
@@ -146,7 +146,7 @@ const SignUp = () => {
 
             {/* Submit */}
             <button type="submit" disabled={isLoading}
-              className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#027570] to-[#038a84] hover:from-[#038a84] hover:to-[#027570] shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#027570] focus:ring-offset-2 transition-all duration-200">
+              className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-[#582dee] hover:bg-[#4622c7] shadow-lg hover:shadow-xl disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#582dee] focus:ring-offset-2 transition-all duration-200">
               {isLoading && (
                 <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -159,7 +159,7 @@ const SignUp = () => {
 
           <p className="mt-6 text-center text-sm text-slate-500">
             Already have an account?{" "}
-            <Link to="/sign-in" className="font-semibold text-[#027570] hover:text-[#038a84] transition-colors">Sign in</Link>
+            <Link to="/sign-in" className="font-semibold text-[#582dee] hover:text-[#4622c7] transition-colors">Sign in</Link>
           </p>
         </div>
       </div>

@@ -45,7 +45,7 @@ const Header = ({ sidebarExpanded, toggleSidebar, theme, toggleTheme, title = "A
         <span className="text-sm text-fg-50 border border-bd-50 rounded-lg px-3 py-1.5 bg-bg-50">
           {currentQuarterLabel}
         </span>
-        <span className="text-sm text-white border border-ac-01 rounded-lg px-3 py-1.5 bg-ac-01">
+        <span className="text-sm text-white border border-[#582dee] rounded-lg px-3 py-1.5 bg-[#582dee] font-medium shadow-sm">
           {formattedDate}
         </span>
         <button

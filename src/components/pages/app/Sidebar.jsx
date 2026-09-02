@@ -10,6 +10,7 @@ import {
   KeyRound,
   FilePlus,
   ShieldCheck,
+  Building2,
   Inbox,
   UserCog,
   Users,
@@ -44,6 +45,10 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
   };
 
   const isAdmin = canViewAdminUsers(user);
+  const userType = String(user?.user_type || user?.user_type_selection || user?.type || "").toLowerCase();
+  const isPerson = ["person", "individual", "autonomo", "freelancer"].includes(userType);
+  const showCompany = !isPerson;
+
   const items = isAdmin
     ? [
         { to: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
@@ -56,6 +61,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
         { to: "/app/invoices", label: "Invoices", icon: FilePlus },
         { to: "/app/ledger", label: "Ledger", icon: BookOpen },
         { to: "/app/tax-filings", label: "Compliance & Tax Filing", icon: Users },
+        ...(showCompany ? [{ to: "/app/settings/company", label: "Company Profile", icon: Building2 }] : []),
         { to: "/app/settings/aeat", label: "AEAT Representation", icon: ShieldCheck },
       ];
   if (!isAdmin && canViewSalesWaitlist(user)) {
@@ -119,7 +125,7 @@ const AppSidebar = ({ sidebarExpanded, setSidebarExpanded }) => {
                 sidebarExpanded ? "gap-2 px-2.5" : "justify-center px-2"
               } py-2 rounded-md transition-colors ${
                 isActive(to)
-                  ? "bg-bg-40 text-fg-50"
+                  ? "bg-[#582dee]/10 text-[#582dee] font-semibold"
                   : "hover:bg-bg-30 hover:text-fg-50 text-fg-60"
               }`}
               title={!sidebarExpanded ? label : ""}

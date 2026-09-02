@@ -10,8 +10,9 @@ const Badge = forwardRef(
 
     const variants = {
       default: "bg-bg-30 dark:bg-bg-40 text-fg-60 dark:text-fg-50",
+      primary: "bg-[#582dee]/10 text-[#582dee] border border-[#582dee]/20 font-semibold",
       success:
-        "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+        "bg-[#582dee]/10 text-[#582dee] border border-[#582dee]/20 font-semibold",
       info: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       warning:
         "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",

@@ -1108,7 +1108,7 @@ const Onboarding = () => {
 
           {/* Open AEAT portal button */}
           <a
-            href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZZ08.shtml"
+            href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZP01.shtml"
             target="_blank"
 
             rel="noopener noreferrer"

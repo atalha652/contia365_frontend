@@ -267,7 +267,7 @@ const AeatSettings = () => {
                   <li>Click <strong>Authorize Contia365</strong> above to confirm your authorization in the app.</li>
                 </ol>
                 <a
-                  href="https://sede.agenciatributaria.gob.es/"
+                  href="https://sede.agenciatributaria.gob.es/Sede/procedimientoini/ZP01.shtml"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-ac-02 hover:underline mt-2 text-xs font-medium"
